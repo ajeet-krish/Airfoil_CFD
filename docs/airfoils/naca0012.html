@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="NACA 0012 CFD analysis results across 5 angles of attack">
+  <title>NACA 0012 - CFD Airfoil Explorer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xz/fonts@1/serve/meslo-lg.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+<div class="top-nav">
+  <a href="../index.html">Home</a>
+  <a href="../methodology.html">Methodology</a>
+  <a href="naca0012.html">NACA 0012</a>
+  <a href="../implementation.html">Implementation</a>
+  <a href="../paraview.html">ParaView</a>
+</div>
+
+<div class="container">
+
+  <div class="hero" style="padding:2rem 0 0.5rem">
+    <h1>NACA 0012 <span style="color:var(--cyan)">Analysis</span></h1>
+    <p>Symmetric baseline airfoil - 5 angles of attack from attached flow to deep stall at $M=0.15$, $Re=1\times10^6$.</p>
+  </div>
+
+  <hr class="divider">
+
+  <h2>Results</h2>
+
+  <h3>Results Summary</h3>
+  <table class="results-table">
+    <tr><th>AoA</th><th>Regime</th><th>$C_l$</th><th>$C_d$</th><th>$C_l/C_d$</th><th>Status</th></tr>
+    <tr><td>0&deg;</td><td>Symmetric Baseline</td><td class="hl-purple">0.0014</td><td class="hl-pink">0.0749</td><td class="hl-green">0.02</td><td>Converged</td></tr>
+    <tr><td>4&deg;</td><td>Linear Lift</td><td class="hl-purple">0.4453</td><td class="hl-pink">0.0969</td><td class="hl-green">4.6</td><td>Converged</td></tr>
+    <tr><td>8&deg;</td><td>High Lift</td><td class="hl-purple">0.8718</td><td class="hl-pink">0.1644</td><td class="hl-green">5.3</td><td>Converged</td></tr>
+    <tr><td>12&deg;</td><td>Onset of Stall</td><td class="hl-purple">1.2647</td><td class="hl-pink">0.2764</td><td class="hl-green">4.6</td><td>Converged</td></tr>
+    <tr><td>16&deg;</td><td>Deep Stall</td><td class="hl-purple">1.6082</td><td class="hl-pink">0.4314</td><td class="hl-green">3.7</td><td>Converged</td></tr>
+  </table>
+
+  <div class="callout">
+    <div class="callout-tag">Note</div>
+    Drag coefficients are ~10&times; higher than experimental values due to 1st-order spatial discretization. The lift curve slope (0.109 per degree) matches inviscid theory within 1%. The SA turbulence model overpredicts attached flow at high AoA - no stall is predicted by 16&deg;.
+  </div>
+
+  <h3>Aggregate Aerodynamic Coefficients</h3>
+
+  <div class="aggregate-grid">
+    <div class="aggregate-figure wide">
+      <div class="aggregate-label">Lift Curve - $C_l$ vs Angle of Attack</div>
+      <img src="../assets/images/cl_vs_alpha.png" alt="Lift curve" loading="lazy">
+    </div>
+    <div class="aggregate-figure">
+      <div class="aggregate-label">Drag Polar - $C_d$ vs $\alpha$</div>
+      <img src="../assets/images/cd_vs_alpha.png" alt="Drag vs alpha" loading="lazy">
+    </div>
+    <div class="aggregate-figure">
+      <div class="aggregate-label">Drag Polar - $C_l$ vs $C_d$</div>
+      <img src="../assets/images/drag_polar.png" alt="Lift vs drag" loading="lazy">
+    </div>
+  </div>
+
+  <div class="aoa-nav">
+    <a href="#aoa-0">0&deg; Symmetric Baseline</a>
+    <a href="#aoa-4">4&deg; Linear Lift</a>
+    <a href="#aoa-8">8&deg; High Lift</a>
+    <a href="#aoa-12">12&deg; Onset of Stall</a>
+    <a href="#aoa-16">16&deg; Deep Stall</a>
+  </div>
+
+  <!-- Per-AoA Sections -->
+  <div class="aoa-section" id="aoa-0">
+    <h3 style="margin-bottom:0">AoA = 0&deg; - Symmetric Baseline</h3>
+    <div class="metrics-grid">
+      <div class="metric-card lift">
+        <div class="metric-label">$C_l$</div>
+        <div class="metric-value hl-purple">0.0014</div>
+      </div>
+      <div class="metric-card drag">
+        <div class="metric-label">$C_d$</div>
+        <div class="metric-value hl-pink">0.0749</div>
+      </div>
+      <div class="metric-card ratio">
+        <div class="metric-label">$C_l/C_d$</div>
+        <div class="metric-value hl-green">0.02</div>
+      </div>
+    </div>
+    <div class="vis-grid">
+      <div class="vis-card">
+        <div class="vis-card-label">Velocity Contours &amp; Streamlines</div>
+        <img src="../assets/images/aoa_0/velocity_0.png" alt="Velocity at 0 degrees" loading="lazy">
+      </div>
+      <div class="vis-card">
+        <div class="vis-card-label">Pressure Field (Pa)</div>
+        <img src="../assets/images/aoa_0/pressure_0.png" alt="Pressure at 0 degrees" loading="lazy">
+      </div>
+      <div class="vis-card">
+        <div class="vis-card-label">Convergence History - RMS Residuals &amp; Force Coefficients</div>
+        <img src="../assets/images/aoa_0/convergence_0.png" alt="Convergence at 0 degrees" loading="lazy">
+      </div>
+    </div>
+  </div>
+
+  <div class="aoa-section" id="aoa-4">
+    <h3 style="margin-bottom:0">AoA = 4&deg; - Linear Lift</h3>
+    <div class="metrics-grid">
+      <div class="metric-card lift">
+        <div class="metric-label">$C_l$</div>
+        <div class="metric-value hl-purple">0.4453</div>
+      </div>
+      <div class="metric-card drag">
+        <div class="metric-label">$C_d$</div>
+        <div class="metric-value hl-pink">0.0969</div>
+      </div>
+      <div class="metric-card ratio">
+        <div class="metric-label">$C_l/C_d$</div>
+        <div class="metric-value hl-green">4.6</div>
+      </div>
+    </div>
+    <div class="vis-grid">
+      <div class="vis-card">
+        <div class="vis-card-label">Velocity Contours &amp; Streamlines</div>
+        <img src="../assets/images/aoa_4/velocity_4.png" alt="Velocity at 4 degrees" loading="lazy">
+      </div>
+      <div class="vis-card">
+        <div class="vis-card-label">Pressure Field (Pa)</div>
+        <img src="../assets/images/aoa_4/pressure_4.png" alt="Pressure at 4 degrees" loading="lazy">
+      </div>
+      <div class="vis-card">
+        <div class="vis-card-label">Convergence History</div>
+        <img src="../assets/images/aoa_4/convergence_4.png" alt="Convergence at 4 degrees" loading="lazy">
+      </div>
+    </div>
+  </div>
+
+  <div class="aoa-section" id="aoa-8">
+    <h3 style="margin-bottom:0">AoA = 8&deg; - High Lift</h3>
+    <div class="metrics-grid">
+      <div class="metric-card lift">
+        <div class="metric-label">$C_l$</div>
+        <div class="metric-value hl-purple">0.8718</div>
+      </div>
+      <div class="metric-card drag">
+        <div class="metric-label">$C_d$</div>
+        <div class="metric-value hl-pink">0.1644</div>
+      </div>
+      <div class="metric-card ratio">
+        <div class="metric-label">$C_l/C_d$</div>
+        <div class="metric-value hl-green">5.3</div>
+      </div>
+    </div>
+    <div class="vis-grid">
+      <div class="vis-card">
+        <div class="vis-card-label">Velocity Contours &amp; Streamlines</div>
+        <img src="../assets/images/aoa_8/velocity_8.png" alt="Velocity at 8 degrees" loading="lazy">
+      </div>
+      <div class="vis-card">
+        <div class="vis-card-label">Pressure Field (Pa)</div>
+        <img src="../assets/images/aoa_8/pressure_8.png" alt="Pressure at 8 degrees" loading="lazy">
+      </div>
+      <div class="vis-card">
+        <div class="vis-card-label">Convergence History</div>
+        <img src="../assets/images/aoa_8/convergence_8.png" alt="Convergence at 8 degrees" loading="lazy">
+      </div>
+    </div>
+  </div>
+
+  <div class="aoa-section" id="aoa-12">
+    <h3 style="margin-bottom:0">AoA = 12&deg; - Onset of Stall</h3>
+    <div class="metrics-grid">
+      <div class="metric-card lift">
+        <div class="metric-label">$C_l$</div>
+        <div class="metric-value hl-purple">1.2647</div>
+      </div>
+      <div class="metric-card drag">
+        <div class="metric-label">$C_d$</div>
+        <div class="metric-value hl-pink">0.2764</div>
+      </div>
+      <div class="metric-card ratio">
+        <div class="metric-label">$C_l/C_d$</div>
+        <div class="metric-value hl-green">4.6</div>
+      </div>
+    </div>
+    <div class="vis-grid">
+      <div class="vis-card">
+        <div class="vis-card-label">Velocity Contours &amp; Streamlines</div>
+        <img src="../assets/images/aoa_12/velocity_12.png" alt="Velocity at 12 degrees" loading="lazy">
+      </div>
+      <div class="vis-card">
+        <div class="vis-card-label">Pressure Field (Pa)</div>
+        <img src="../assets/images/aoa_12/pressure_12.png" alt="Pressure at 12 degrees" loading="lazy">
+      </div>
+      <div class="vis-card">
+        <div class="vis-card-label">Convergence History</div>
+        <img src="../assets/images/aoa_12/convergence_12.png" alt="Convergence at 12 degrees" loading="lazy">
+      </div>
+    </div>
+  </div>
+
+  <div class="aoa-section" id="aoa-16">
+    <h3 style="margin-bottom:0">AoA = 16&deg; - Deep Stall</h3>
+    <div class="metrics-grid">
+      <div class="metric-card lift">
+        <div class="metric-label">$C_l$</div>
+        <div class="metric-value hl-purple">1.6082</div>
+      </div>
+      <div class="metric-card drag">
+        <div class="metric-label">$C_d$</div>
+        <div class="metric-value hl-pink">0.4314</div>
+      </div>
+      <div class="metric-card ratio">
+        <div class="metric-label">$C_l/C_d$</div>
+        <div class="metric-value hl-green">3.7</div>
+      </div>
+    </div>
+    <div class="vis-grid">
+      <div class="vis-card">
+        <div class="vis-card-label">Velocity Contours &amp; Streamlines</div>
+        <img src="../assets/images/aoa_16/velocity_16.png" alt="Velocity at 16 degrees" loading="lazy">
+      </div>
+      <div class="vis-card">
+        <div class="vis-card-label">Pressure Field (Pa)</div>
+        <img src="../assets/images/aoa_16/pressure_16.png" alt="Pressure at 16 degrees" loading="lazy">
+      </div>
+      <div class="vis-card">
+        <div class="vis-card-label">Convergence History</div>
+        <img src="../assets/images/aoa_16/convergence_16.png" alt="Convergence at 16 degrees" loading="lazy">
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<footer class="site-footer">
+  <p>&copy; 2026 &middot; CFD Airfoil Explorer &middot; SU2 &middot; Gmsh &middot; Matplotlib &middot; Dracula Theme</p>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  renderMathInElement(document.body, {
+    delimiters: [
+      { left: "$$", right: "$$", display: true },
+      { left: "$", right: "$", display: false }
+    ],
+    throwOnError: false
+  });
+});
+</script>
+</body>
+</html>

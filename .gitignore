@@ -19,3 +19,6 @@ run_output.txt
 
 # MyPy cache
 .mypy_cache/
+
+# Untracked reference
+paraview_recipes.md

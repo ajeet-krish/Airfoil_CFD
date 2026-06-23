@@ -1,6 +1,6 @@
-# Airfoil CFD Pipeline
+# CFD Airfoil Explorer
 
-Automated CFD analysis of NACA 4-digit airfoils across multiple angles of attack using SU2 RANS (Spalart-Allmaras) on high-quality C-grid meshes with structured boundary layers. Generates Dracula-themed visualizations and a static portfolio website.
+Automated CFD analysis of NACA 4-digit airfoils across multiple angles of attack using SU2 RANS (Spalart-Allmaras) on high-quality C-grid meshes with structured boundary layers. Generates Dracula-themed visualizations and a static multi-page portfolio website.
 
 ## Features
 
@@ -9,7 +9,7 @@ Automated CFD analysis of NACA 4-digit airfoils across multiple angles of attack
 - **SU2 RANS Solver**: Compressible RANS with Spalart-Allmaras turbulence model
 - **Rich Visualizations**: Velocity contours with streamlines, pressure field, mesh topology, convergence history
 - **Experimental Validation**: Lift curve, drag polar with Ladson (1988) overlay
-- **Portfolio Website**: Static Dracula-themed HTML with expandable source code
+- **Extensible**: Add new airfoils by running the same pipeline — each gets its own results page
 
 ## Results — NACA 0012
 
@@ -54,12 +54,22 @@ open docs/index.html
 │   └── validate.py      NACA 0012 experimental data (Ladson 1988)
 ├── run_tunnel.py        Main pipeline orchestrator
 ├── docs/
-│   ├── index.html       Static portfolio website
-│   ├── css/style.css    Dracula theme
-│   ├── assets/images/   Synced visualization PNGs
-│   └── build_site.py    HTML generator (regenerates index.html from source)
-└── output/              Generated results (gitignored)
+│   ├── index.html              Home page
+│   ├── methodology.html        Theory, methodology, mesh design
+│   ├── implementation.html     Code architecture and source
+│   ├── paraview.html           ParaView walkthrough
+│   ├── airfoils/
+│   │   └── naca0012.html       NACA 0012 results
+│   ├── css/style.css           Dracula theme
+│   └── assets/images/          Synced visualization PNGs
+└── output/                     Generated results (gitignored)
 ```
+
+## Adding a New Airfoil
+
+1. Update `NACA_PARAMS` in `run_tunnel.py` (m, p, t values)
+2. Run the pipeline
+3. Copy `docs/airfoils/naca0012.html` as template, update parameters and image paths
 
 ## GitHub Pages
 

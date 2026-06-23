@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Code implementation of the CFD Airfoil Explorer pipeline">
+  <title>CFD Airfoil Explorer - Implementation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xz/fonts@1/serve/meslo-lg.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="top-nav">
+  <a href="index.html">Home</a>
+  <a href="methodology.html">Methodology</a>
+  <a href="airfoils/naca0012.html">NACA 0012</a>
+  <a href="implementation.html">Implementation</a>
+  <a href="paraview.html">ParaView</a>
+</div>
+
+<div class="container">
+
+  <div class="hero" style="padding:2rem 0 0.5rem">
+    <h1>Code <span style="color:var(--cyan)">Implementation</span></h1>
+    <p>Modular Python pipeline - six components under the OOP pattern, each reusable and independently testable.</p>
+  </div>
+
+  <hr class="divider">
+
+  <h2>Quick Start</h2>
+
+  <div class="callout">
+    <div class="callout-tag">How to Run</div>
+    <p style="margin-bottom:6px">From the project root, run:</p>
+    <pre><code>uv run python run_tunnel.py</code></pre>
+    <p style="margin-bottom:0;margin-top:6px">This generates geometry, meshes, solves, and post-processes all 5 angles of attack. Expect ~30 minutes total on an M-series Mac. Output appears in <code>output/</code> and syncs to <code>docs/assets/images/</code>.</p>
+  </div>
+
+  <h2>Code Architecture</h2>
+
+  <p>The pipeline is organized into five modular components under <code>physics/</code>:</p>
+
+  <table>
+    <tr><th>Module</th><th>Class/Function</th><th>Purpose</th></tr>
+    <tr><td><code>geometry.py</code></td><td><code>generate_naca_4digit()</code></td><td>NACA 4-digit coordinate generation with cosine spacing</td></tr>
+    <tr><td><code>mesher.py</code></td><td><code>MeshGenerator</code></td><td>Hybrid C-grid with structured boundary layers via Gmsh</td></tr>
+    <tr><td><code>solver.py</code></td><td><code>SU2Config</code>, <code>SU2Solver</code>, <code>SU2Results</code></td><td>Config generation, solver execution, result parsing</td></tr>
+    <tr><td><code>post.py</code></td><td><code>Visualizer</code></td><td>Matplotlib velocity/pressure/mesh with griddata-based streamlines</td></tr>
+    <tr><td><code>analysis.py</code></td><td><code>plot_convergence</code>, <code>plot_cl_alpha</code>, etc.</td><td>Convergence plots, $C_l$/$C_d$ curves, drag polar with experimental overlay</td></tr>
+  </table>
+
+  <p>The orchestrator <code>run_tunnel.py</code> iterates through angles of attack, coordinates the pipeline stages, aggregates results, and syncs output images to <code>docs/assets/images/</code>.</p>
+
+  <h2>SU2 Configuration Reference</h2>
+
+  <p>The solver configuration is generated programmatically by the <code>SU2Config</code> dataclass. Key settings:</p>
+
+  <table>
+    <tr><th>Option</th><th>Value</th><th>Rationale</th></tr>
+    <tr><td><code>SOLVER</code></td><td><code>RANS</code></td><td>Reynolds-Averaged Navier-Stokes (turbulent)</td></tr>
+    <tr><td><code>KIND_TURB_MODEL</code></td><td><code>SA</code></td><td>Spalart-Allmaras one-equation model</td></tr>
+    <tr><td><code>CONV_NUM_METHOD_FLOW</code></td><td><code>ROE</code></td><td>Roe upwind scheme (stable for C-grid)</td></tr>
+    <tr><td><code>MUSCL_FLOW</code></td><td><code>NO</code></td><td>1st-order stability; higher order diverges on this mesh</td></tr>
+    <tr><td><code>CFL_ADAPT_PARAM</code></td><td><code>(0.01, 5.0, 1.1, 25.0)</code></td><td>Gentle CFL ramp from very low to avoid initial divergence</td></tr>
+    <tr><td><code>HISTORY_OUTPUT</code></td><td><code>(INNER_ITER, RMS_RES, AERO_COEFF)</code></td><td>CSV output includes CL and CD columns directly</td></tr>
+    <tr><td><code>OUTPUT_FILES</code></td><td><code>(RESTART, PARAVIEW)</code></td><td>VTU volume files for visualization</td></tr>
+  </table>
+
+  <div class="callout">
+    <div class="callout-tag">Note</div>
+    The <code>ENTROPY_FIX_COEFF</code> option is NOT valid in SU2 v8.4.0 and was removed. The <code>Path.resolve()</code> call on the output directory was required to prevent SU2 from looking for <code>config.cfg</code> in the wrong working directory.
+  </div>
+
+  <hr class="divider">
+
+  <h2>Full Source Code</h2>
+  <p>Complete source for all pipeline modules. Click to expand:</p>
+
+  <div class="code-block"><details><summary><code>physics/geometry.py</code> - NACA 4-digit airfoil coordinates</summary><pre><code class="language-python">from __future__ import annotations
+
+import numpy as np
+
+
+def generate_naca_4digit(
+    m: float, p: float, t: float, num_points: int = 200
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Generate upper and lower coordinates for a NACA 4-digit airfoil.
+
+    Uses cosine spacing to cluster points at leading and trailing edges
+    for better resolution of high-curvature regions.
+
+    Args:
+        m: Maximum camber (e.g., 0.02 for NACA 2412)
+        p: Position of max camber (e.g., 0.4 for NACA 2412)
+        t: Maximum thickness in percent (e.g., 12 for NACA 0012)
+        num_points: Number of points along the chord
+    Returns:
+        (upper_coords, lower_coords) as Nx2 numpy arrays
+    """
+    t = t / 100.0
+
+    beta = np.linspace(0, np.pi, num_points)
+    x = (1 - np.cos(beta)) / 2
+
+    yt = (
+        5 * t * (
+            0.2969 * np.sqrt(x) - 0.1260 * x - 0.3516 * x**2
+            + 0.2843 * x**3 - 0.1015 * x**4
+        )
+    )
+
+    yc = np.zeros_like(x)
+    dyc_dx = np.zeros_like(x)
+
+    if m > 0 and p > 0:
+        forward = x < p
+        backward = ~forward
+        yc[forward] = (m / p**2) * (2 * p * x[forward] - x[forward] ** 2)
+        dyc_dx[forward] = (2 * m / p**2) * (p - x[forward])
+        yc[backward] = (m / (1 - p) ** 2) * (
+            (1 - 2 * p) + 2 * p * x[backward] - x[backward] ** 2
+        )
+        dyc_dx[backward] = (2 * m / (1 - p) ** 2) * (p - x[backward])
+
+    theta = np.arctan(dyc_dx)
+
+    xu = x - yt * np.sin(theta)
+    yu = yc + yt * np.cos(theta)
+    xl = x + yt * np.sin(theta)
+    yl = yc - yt * np.cos(theta)
+
+    upper_coords = np.column_stack((xu, yu))
+    lower_coords = np.column_stack((xl, yl))
+
+    return upper_coords, lower_coords
+
+
+def save_dat_file(upper: np.ndarray, lower: np.ndarray, filename: str) -> None:
+    coords = np.vstack((upper[::-1], lower[1:]))
+    np.savetxt(filename, coords, fmt="%f %f")
+</code></pre></details></div>
+
+  <div class="code-block"><details><summary><code>physics/mesher.py</code> - Hybrid C-grid with boundary layer</summary><pre><code class="language-python">from __future__ import annotations
+
+from pathlib import Path
+from typing import Optional
+
+import gmsh
+import numpy as np
+
+
+class MeshGenerator:
+    """Gmsh-based mesh generation for 2D airfoil C-grid meshes."""
+
+    FARFIELD_RADIUS: float = 15.0
+    DOWNSTREAM_LENGTH: float = 30.0
+
+    def __init__(self, mesh_density: float = 1.0):
+        self.mesh_density = mesh_density
+
+    @staticmethod
+    def _clean_coords(dat_file: str) -> np.ndarray:
+        coords = np.loadtxt(dat_file)
+        if np.allclose(coords[0], coords[-1], atol=1e-5):
+            return coords[:-1]
+        return coords
+
+    def generate(
+        self,
+        dat_file: str,
+        output_su2: str,
+        bl_first_layer: float = 2e-5,
+        bl_ratio: float = 1.15,
+        bl_thickness: float = 0.05,
+        farfield_size: float = 1.2,
+        airfoil_size: float = 0.003,
+        quiet: bool = True,
+    ) -> Path:
+        gmsh.initialize()
+        if quiet:
+            gmsh.option.setNumber("General.Terminal", 0)
+
+        gmsh.model.add("airfoil_cgrid")
+
+        coords = self._clean_coords(dat_file)
+        airfoil_points = []
+        for x, y in coords:
+            pid = gmsh.model.geo.addPoint(x, y, 0.0)
+            airfoil_points.append(pid)
+
+        airfoil_tag = gmsh.model.geo.addSpline(airfoil_points + [airfoil_points[0]])
+
+        R = self.FARFIELD_RADIUS
+        L = self.DOWNSTREAM_LENGTH
+
+        p_bot = gmsh.model.geo.addPoint(0.0, -R, 0.0)
+        p_ctr = gmsh.model.geo.addPoint(0.0, 0.0, 0.0)
+        p_lef = gmsh.model.geo.addPoint(-R, 0.0, 0.0)
+        p_top = gmsh.model.geo.addPoint(0.0, R, 0.0)
+        p_out_top = gmsh.model.geo.addPoint(L, R, 0.0)
+        p_out_bot = gmsh.model.geo.addPoint(L, -R, 0.0)
+
+        arc_bot = gmsh.model.geo.addCircleArc(p_bot, p_ctr, p_lef)
+        arc_top = gmsh.model.geo.addCircleArc(p_lef, p_ctr, p_top)
+        line_top = gmsh.model.geo.addLine(p_top, p_out_top)
+        line_out = gmsh.model.geo.addLine(p_out_top, p_out_bot)
+        line_bot = gmsh.model.geo.addLine(p_out_bot, p_bot)
+
+        farfield_curves = [arc_bot, arc_top, line_top, line_out, line_bot]
+
+        farfield_loop = gmsh.model.geo.addCurveLoop(farfield_curves)
+        airfoil_loop = gmsh.model.geo.addCurveLoop([airfoil_tag])
+        fluid_surf = gmsh.model.geo.addPlaneSurface([farfield_loop, airfoil_loop])
+
+        gmsh.model.geo.synchronize()
+
+        gmsh.model.addPhysicalGroup(1, farfield_curves, name="farfield")
+        gmsh.model.addPhysicalGroup(1, [airfoil_tag], name="airfoil")
+        gmsh.model.addPhysicalGroup(2, [fluid_surf], name="fluid")
+
+        dist = gmsh.model.mesh.field.add("Distance")
+        gmsh.model.mesh.field.setNumbers(dist, "CurvesList", [airfoil_tag])
+
+        thresh = gmsh.model.mesh.field.add("Threshold")
+        gmsh.model.mesh.field.setNumber(thresh, "InField", dist)
+        gmsh.model.mesh.field.setNumber(thresh, "SizeMin", airfoil_size * self.mesh_density)
+        gmsh.model.mesh.field.setNumber(thresh, "SizeMax", farfield_size * self.mesh_density)
+        gmsh.model.mesh.field.setNumber(thresh, "DistMin", 0.05)
+        gmsh.model.mesh.field.setNumber(thresh, "DistMax", 2.5)
+
+        bl = gmsh.model.mesh.field.add("BoundaryLayer")
+        gmsh.model.mesh.field.setNumbers(bl, "CurvesList", [airfoil_tag])
+        gmsh.model.mesh.field.setNumber(bl, "Size", bl_first_layer)
+        gmsh.model.mesh.field.setNumber(bl, "Ratio", bl_ratio)
+        gmsh.model.mesh.field.setNumber(bl, "Thickness", bl_thickness)
+        gmsh.model.mesh.field.setAsBoundaryLayer(bl)
+
+        gmsh.model.mesh.field.setAsBackgroundMesh(thresh)
+
+        gmsh.option.setNumber("Mesh.Algorithm", 6)
+        gmsh.option.setNumber("Mesh.RecombinationAlgorithm", 0)
+        gmsh.option.setNumber("Mesh.SubdivisionAlgorithm", 0)
+
+        gmsh.model.mesh.generate(2)
+
+        gmsh.model.mesh.createTopology()
+        gmsh.write(output_su2)
+
+        gmsh.finalize()
+        return Path(output_su2)
+
+
+def generate_su2_mesh(dat_file, output_su2, mesh_density=1.0):
+    gen = MeshGenerator(mesh_density=mesh_density)
+    return gen.generate(dat_file, output_su2)
+</code></pre></details></div>
+
+  <div class="code-block"><details><summary><code>physics/solver.py</code> - SU2 config, solver, and results</summary><pre><code class="language-python">from __future__ import annotations
+
+import dataclasses
+import shutil
+import subprocess
+import tempfile
+from pathlib import Path
+from typing import Optional
+
+
+@dataclasses.dataclass
+class SU2Config:
+    angle_of_attack: float = 0.0
+    mach_number: float = 0.15
+    reynolds_number: float = 1_000_000
+    reynolds_length: float = 1.0
+    iterations: int = 2000
+    cfl_number: float = 0.5
+    cfl_adapt: bool = True
+    turbulence_model: str = "SA"
+    muscl_flow: str = "NO"
+    slope_limiter_flow: str = "VENKATAKRISHNAN"
+    conv_num_method_flow: str = "ROE"
+    screen_output: str = "ITER, RMS_DENSITY, LIFT, DRAG"
+
+    def write(self, path: Path) -> None:
+        tag = str(int(self.angle_of_attack))
+        lines = [
+            f"% ------ CONFIG FILE (auto-generated by SU2Config) ------",
+            f"",
+            f"% --- SOLVER DEFINITIONS ---",
+            f"SOLVER= RANS",
+            f"KIND_TURB_MODEL= {self.turbulence_model}",
+            f"MATH_PROBLEM= DIRECT",
+            f"RESTART_SOL= NO",
+            f"",
+            f"% --- FREESTREAM DEFINITIONS ---",
+            f"MACH_NUMBER= {self.mach_number}",
+            f"AOA= {self.angle_of_attack:.2f}",
+            f"REYNOLDS_NUMBER= {self.reynolds_number}",
+            f"REYNOLDS_LENGTH= {self.reynolds_length}",
+            f"",
+            f"% --- THERMODYNAMIC PROPERTIES ---",
+            f"FLUID_MODEL= STANDARD_AIR",
+            f"GAMMA_VALUE= 1.4",
+            f"GAS_CONSTANT= 287.05",
+            f"FREESTREAM_TEMPERATURE= 288.15",
+            f"FREESTREAM_PRESSURE= 101325.0",
+            f"",
+            f"% --- BOUNDARY CONDITIONS ---",
+            f"MARKER_FAR= ( farfield )",
+            f"MARKER_HEATFLUX= ( airfoil, 0.0 )",
+            f"MARKER_MONITORING= ( airfoil )",
+            f"",
+            f"% --- NUMERICAL METHODS ---",
+            f"NUM_METHOD_GRAD= GREEN_GAUSS",
+            f"CONV_NUM_METHOD_FLOW= {self.conv_num_method_flow}",
+            f"CONV_NUM_METHOD_TURB= SCALAR_UPWIND",
+            f"MUSCL_FLOW= {self.muscl_flow}",
+            f"SLOPE_LIMITER_FLOW= {self.slope_limiter_flow}",
+            f"MUSCL_TURB= NO",
+            f"TIME_DISCRE_FLOW= EULER_IMPLICIT",
+            f"",
+            f"% --- ITERATIVE CONTROLS ---",
+            f"ITER= {self.iterations}",
+            f"CFL_NUMBER= {self.cfl_number}",
+            f"CFL_ADAPT= {'YES' if self.cfl_adapt else 'NO'}",
+            f"CFL_ADAPT_PARAM= ( 0.01, 5.0, 1.1, 25.0 )",
+            f"",
+            f"% --- CONVERGENCE CRITERIA ---",
+            f"CONV_FIELD= RMS_DENSITY",
+            f"CONV_RESIDUAL_MINVAL= -8",
+            f"CONV_STARTITER= 10",
+            f"",
+            f"% --- LINEAR SOLVER ---",
+            f"LINEAR_SOLVER= FGMRES",
+            f"LINEAR_SOLVER_PREC= ILU",
+            f"LINEAR_SOLVER_ERROR= 1E-6",
+            f"LINEAR_SOLVER_ITER= 10",
+            f"",
+            f"% --- MULTIGRID ---",
+            f"MGLEVEL= 0",
+            f"",
+            f"% --- OUTPUT ---",
+            f"MESH_FORMAT= SU2",
+            f"MESH_FILENAME= mesh.su2",
+            f"TABULAR_FORMAT= CSV",
+            f"CONV_FILENAME= history",
+            f"VOLUME_FILENAME= flow_results_{tag}",
+            f"SURFACE_FILENAME= surface_flow_{tag}",
+            f"OUTPUT_WRT_FREQ= {self.iterations}",
+            f"HISTORY_WRT_FREQ_INNER= 1",
+            f"SCREEN_OUTPUT= ( {self.screen_output} )",
+            f"HISTORY_OUTPUT= ( INNER_ITER, RMS_RES, AERO_COEFF )",
+            f"OUTPUT_FILES= (RESTART, PARAVIEW)",
+            f"",
+        ]
+        path.write_text("\n".join(lines))
+
+
+@dataclasses.dataclass
+class SU2Results:
+    cd: float = 0.0
+    cl: float = 0.0
+    cmz: float = 0.0
+    converged: bool = False
+    iterations: int = 0
+    history: list[dict] = dataclasses.field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return dataclasses.asdict(self)
+
+
+class SU2Solver:
+    def __init__(self, su2_cfd: str = "SU2_CFD", workdir: Optional[Path] = None):
+        self.su2_cfd = su2_cfd
+        self.workdir = workdir or Path(tempfile.mkdtemp())
+
+    def run(self, config: SU2Config, mesh_file: Path, output_dir: Path,
+            timeout: Optional[int] = None) -> SU2Results:
+        output_dir = Path(output_dir).resolve()
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        cfg_path = output_dir / "config.cfg"
+        config.write(cfg_path)
+
+        mesh_local = output_dir / "mesh.su2"
+        if mesh_file.resolve() != mesh_local.resolve():
+            shutil.copy2(mesh_file, mesh_local)
+
+        cmd = [self.su2_cfd, str(cfg_path)]
+        print(f"  Executing SU2_CFD (up to {config.iterations} iterations)...")
+
+        try:
+            proc = subprocess.run(cmd, cwd=str(output_dir),
+                                  capture_output=True, text=True, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            print("  SU2_CFD timed out")
+            return SU2Results()
+
+        return self._parse_results(proc, output_dir)
+
+    def _normalize_header(self, raw_header: str) -> list[str]:
+        return [h.strip().strip('"').strip() for h in raw_header.split(",")]
+
+    def _parse_screen_cl_cd(self, stdout: str) -> tuple[Optional[float], Optional[float]]:
+        lines = stdout.strip().split("\n")
+        for line in reversed(lines):
+            parts = [p.strip() for p in line.split("|")]
+            if len(parts) >= 4:
+                try:
+                    return float(parts[-2]), float(parts[-1])
+                except (ValueError, IndexError):
+                    continue
+        return None, None
+
+    def _parse_results(self, proc: subprocess.CompletedProcess, workdir: Path) -> SU2Results:
+        results = SU2Results()
+        stdout, stderr = proc.stdout, proc.stderr
+
+        if proc.returncode != 0:
+            print(f"  [SU2 exited with code {proc.returncode}]")
+            for line in (stderr or "").strip().split("\n")[-5:]:
+                if line.strip():
+                    print(f"  STDERR: {line.strip()}")
+            return results
+
+        results.converged = "Convergence reached" in stdout or "convergence" in stdout.lower()
+
+        col_map = {"ITER": "ITER", "Inner_Iter": "ITER", "INNER_ITER": "ITER",
+                    "DRAG": "DRAG", "CD": "DRAG", "cd": "DRAG",
+                    "LIFT": "LIFT", "CL": "LIFT", "cl": "LIFT",
+                    "MOMENT": "MOMENT", "CMZ": "MOMENT", "Cmz": "MOMENT"}
+
+        hist_file = workdir / "history.csv"
+        if hist_file.exists():
+            lines = hist_file.read_text().strip().split("\n")
+            if len(lines) > 1:
+                header = self._normalize_header(lines[0])
+                n_cols = len(header)
+                last_entry = None
+                for line in lines[1:]:
+                    vals = [v.strip() for v in line.split(",")]
+                    if len(vals) == n_cols:
+                        entry = {col_map.get(k, k): v for k, v in zip(header, vals)}
+                        results.history.append(entry)
+                        last_entry = entry
+                if last_entry:
+                    try:
+                        results.iterations = int(float(last_entry.get("ITER", 0)))
+                        cd = last_entry.get("DRAG")
+                        cl = last_entry.get("LIFT")
+                        if cd is not None: results.cd = float(cd)
+                        if cl is not None: results.cl = float(cl)
+                    except (ValueError, TypeError):
+                        pass
+
+        if abs(results.cd) < 1e-12 or abs(results.cl) > 1e3:
+            cl, cd = self._parse_screen_cl_cd(stdout)
+            if cl is not None:
+                results.cl = cl
+                results.cd = cd
+
+        return results
+</code></pre></details></div>
+
+  <div class="code-block"><details><summary><code>physics/post.py</code> - Visualization pipeline</summary><pre><code class="language-python">from __future__ import annotations
+
+from pathlib import Path
+from typing import Optional
+
+import matplotlib
+import numpy as np
+import pyvista as pv
+from scipy.interpolate import griddata
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
+BG_COLOR = "#282a36"
+CARD_BG = "#44475a"
+TEXT_COLOR = "#f8f8f2"
+ACCENT_PINK = "#ff79c6"
+ACCENT_PURPLE = "#bd93f9"
+ACCENT_CYAN = "#8be9fd"
+ACCENT_GREEN = "#50fa7b"
+COMMENT = "#6272a4"
+CMAP_VEL = plt.cm.colors.LinearSegmentedColormap.from_list(
+    "dracula_vel", ["#bd93f9", "#ff79c6", "#f1fa8c"], N=256
+)
+CMAP_PRE = "magma"
+CMAP_CP = "coolwarm"
+
+
+class Visualizer:
+    def __init__(self, window_size: tuple[int, int] = (1000, 800), off_screen: bool = True):
+        self.window_size = window_size
+        self.off_screen = off_screen
+        self._grid_nx = 600
+        self._grid_ny = 400
+        self._xlim = (-2.0, 5.0)
+        self._ylim = (-3.0, 3.0)
+
+    def _make_regular_grid(self):
+        xs = np.linspace(self._xlim[0], self._xlim[1], self._grid_nx)
+        ys = np.linspace(self._ylim[0], self._ylim[1], self._grid_ny)
+        return np.meshgrid(xs, ys)
+
+    def _interp_to_grid(self, x, y, values, Xg, Yg):
+        pts = np.column_stack([x, y])
+        return griddata(pts, values, (Xg, Yg), method="linear")
+
+    def _apply_dracula_style(self, ax):
+        ax.set_facecolor(BG_COLOR)
+        ax.tick_params(colors=TEXT_COLOR)
+        for spine in ax.spines.values():
+            spine.set_color(CARD_BG)
+        ax.xaxis.label.set_color(TEXT_COLOR)
+        ax.yaxis.label.set_color(TEXT_COLOR)
+        ax.title.set_color(TEXT_COLOR)
+
+    def export_velocity(self, vtu_file: str, save_path: str, aoa: int = 0,
+                        streamlines: bool = True) -> Optional[str]:
+        vtu_path = Path(vtu_file)
+        if not vtu_path.exists():
+            print(f"  VTU not found: {vtu_file}")
+            return None
+
+        mesh = pv.read(vtu_file)
+        if "Velocity" not in mesh.point_data:
+            print(f"  No Velocity field in {vtu_file}")
+            return None
+
+        pts = mesh.points
+        vel = mesh["Velocity"]
+        vel_mag = np.linalg.norm(vel, axis=1)
+        vel_mag_max = np.percentile(vel_mag, 98)
+
+        Xg, Yg = self._make_regular_grid()
+        Vg = self._interp_to_grid(pts[:, 0], pts[:, 1], vel_mag, Xg, Yg)
+        Ug = self._interp_to_grid(pts[:, 0], pts[:, 1], vel[:, 0], Xg, Yg)
+        Vv = self._interp_to_grid(pts[:, 0], pts[:, 1], vel[:, 1], Xg, Yg)
+
+        fig, ax = plt.subplots(figsize=(10, 6.5), facecolor=BG_COLOR)
+        self._apply_dracula_style(ax)
+
+        contour = ax.contourf(Xg, Yg, Vg, levels=50, cmap=CMAP_VEL,
+                               vmin=0, vmax=vel_mag_max, extend="max")
+
+        if streamlines:
+            try:
+                stride = 3
+                ax.streamplot(Xg[::stride, ::stride], Yg[::stride, ::stride],
+                              Ug[::stride, ::stride], Vv[::stride, ::stride],
+                              color="white", linewidth=0.6, density=0.8, arrowsize=0.6)
+            except Exception as e:
+                print(f"  Streamline generation failed: {e}")
+
+        cbar = fig.colorbar(contour, ax=ax, pad=0.02)
+        cbar.set_label("Velocity Magnitude", color=TEXT_COLOR)
+        cbar.ax.yaxis.label.set_color(TEXT_COLOR)
+        cbar.ax.tick_params(colors=TEXT_COLOR)
+        ax.set_xlabel("x/c")
+        ax.set_ylabel("y/c")
+        ax.set_title("Velocity Field with Streamlines", color=TEXT_COLOR)
+        ax.set_aspect("equal")
+
+        out = f"{save_path}/velocity_{aoa}.png"
+        fig.savefig(out, dpi=150, bbox_inches="tight", facecolor=BG_COLOR)
+        plt.close(fig)
+        return out
+
+    def export_pressure(self, vtu_file: str, save_path: str, aoa: int = 0) -> Optional[str]:
+        vtu_path = Path(vtu_file)
+        if not vtu_path.exists():
+            print(f"  VTU not found: {vtu_file}")
+            return None
+
+        mesh = pv.read(vtu_file)
+        if "Pressure" not in mesh.point_data:
+            print(f"  No Pressure field in {vtu_file}")
+            return None
+
+        pts = mesh.points
+        pressure = mesh["Pressure"]
+        p_min, p_max = np.percentile(pressure, [2, 98])
+        Xg, Yg = self._make_regular_grid()
+        Pg = self._interp_to_grid(pts[:, 0], pts[:, 1], pressure, Xg, Yg)
+
+        fig, ax = plt.subplots(figsize=(10, 6.5), facecolor=BG_COLOR)
+        self._apply_dracula_style(ax)
+        contour = ax.contourf(Xg, Yg, Pg, levels=50, cmap=CMAP_PRE,
+                               vmin=p_min, vmax=p_max, extend="both")
+        cbar = fig.colorbar(contour, ax=ax, pad=0.02)
+        cbar.set_label("Pressure", color=TEXT_COLOR)
+        cbar.ax.yaxis.label.set_color(TEXT_COLOR)
+        cbar.ax.tick_params(colors=TEXT_COLOR)
+        ax.set_xlabel("x/c")
+        ax.set_ylabel("y/c")
+        ax.set_title("Pressure Field", color=TEXT_COLOR)
+        ax.set_aspect("equal")
+
+        out = f"{save_path}/pressure_{aoa}.png"
+        fig.savefig(out, dpi=150, bbox_inches="tight", facecolor=BG_COLOR)
+        plt.close(fig)
+        return out
+
+    def export_mesh_visual(self, vtu_file: str, save_path: str, aoa: int = 0) -> Optional[str]:
+        if not Path(vtu_file).exists():
+            print(f"  VTU not found: {vtu_file}")
+            return None
+
+        mesh = pv.read(vtu_file)
+        for key in list(mesh.point_data.keys()):
+            del mesh.point_data[key]
+
+        plotter = pv.Plotter(off_screen=self.off_screen, window_size=self.window_size)
+        plotter.set_background(BG_COLOR)
+        plotter.add_mesh(mesh, color="#44475a", style="wireframe", line_width=0.3, show_edges=True)
+        plotter.view_xy()
+        plotter.camera.tight(padding=0.15)
+
+        out = f"{save_path}/mesh_{aoa}.png"
+        plotter.screenshot(out)
+        plotter.close()
+        return out
+
+    def export_surface_cp(self, surface_vtu: str, save_path: str, aoa: int = 0) -> Optional[str]:
+        if not Path(surface_vtu).exists():
+            print(f"  Surface VTU not found: {surface_vtu}")
+            return None
+
+        mesh = pv.read(surface_vtu)
+        if "Pressure_Coefficient" not in mesh.point_data:
+            print(f"  No Pressure_Coefficient in {surface_vtu}")
+            return None
+
+        points = mesh.points
+        cp = mesh["Pressure_Coefficient"]
+        sort_idx = np.argsort(points[:, 0])
+        x = points[sort_idx, 0]
+        cp_sorted = cp[sort_idx]
+
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots(facecolor=BG_COLOR)
+        ax.set_facecolor(BG_COLOR)
+        ax.plot(x, cp_sorted, color="#ff79c6", linewidth=2, label=f"AoA={aoa}°")
+        ax.invert_yaxis()
+        ax.set_xlabel("x/c", color="#f8f8f2")
+        ax.set_ylabel("$C_p$", color="#f8f8f2")
+        ax.set_title(f"Pressure Coefficient Distribution - AoA = {aoa}°", color="#f8f8f2")
+        ax.tick_params(colors="#f8f8f2")
+        for spine in ax.spines.values():
+            spine.set_color("#44475a")
+        ax.legend(facecolor="#44475a", labelcolor="#f8f8f2")
+        ax.grid(True, alpha=0.15)
+
+        out = f"{save_path}/cp_distribution_{aoa}.png"
+        fig.savefig(out, dpi=150, bbox_inches="tight", facecolor=BG_COLOR)
+        plt.close(fig)
+        return out
+</code></pre></details></div>
+
+  <div class="code-block"><details><summary><code>physics/analysis.py</code> - Convergence &amp; aggregate plots</summary><pre><code class="language-python">from __future__ import annotations
+
+from pathlib import Path
+from typing import Optional
+
+import numpy as np
+from physics.solver import SU2Results
+
+BG_COLOR = "#282a36"
+CARD_BG = "#44475a"
+FG_COLOR = "#f8f8f2"
+PINK = "#ff79c6"
+PURPLE = "#bd93f9"
+CYAN = "#8be9fd"
+GREEN = "#50fa7b"
+YELLOW = "#f1fa8c"
+COMMENT = "#6272a4"
+
+
+def _setup_matplotlib():
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    plt.rcParams.update({
+        "figure.facecolor": BG_COLOR, "axes.facecolor": BG_COLOR,
+        "axes.edgecolor": CARD_BG, "axes.labelcolor": FG_COLOR,
+        "text.color": FG_COLOR, "xtick.color": COMMENT, "ytick.color": COMMENT,
+        "grid.alpha": 0.15, "grid.color": FG_COLOR,
+        "legend.facecolor": CARD_BG, "legend.labelcolor": FG_COLOR,
+    })
+    return plt
+
+
+def plot_convergence(history: list[dict], save_path: str, aoa: int = 0) -> Optional[str]:
+    if not history:
+        return None
+    import matplotlib.pyplot as plt
+    _setup_matplotlib()
+
+    n = len(history)
+    iters = np.arange(1, n + 1)
+    rho_res, rhoU_res, rhoV_res, nu_res = [], [], [], []
+    cl_hist, cd_hist = [], []
+    for entry in history:
+        rho_res.append(float(entry.get("rms[Rho]", float("nan"))))
+        rhoU_res.append(float(entry.get("rms[RhoU]", float("nan"))))
+        rhoV_res.append(float(entry.get("rms[RhoV]", float("nan"))))
+        nu_res.append(float(entry.get("rms[nu]", float("nan"))))
+        cl_hist.append(float(entry.get("LIFT", float("nan"))))
+        cd_hist.append(float(entry.get("DRAG", float("nan"))))
+
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+    ax1.plot(iters, rho_res, label="RMS Density", color=CYAN, linewidth=1)
+    ax1.plot(iters, rhoU_res, label="RMS RhoU", color=PINK, linewidth=1)
+    ax1.plot(iters, rhoV_res, label="RMS RhoV", color=GREEN, linewidth=1)
+    ax1.plot(iters, nu_res, label="RMS nu", color=YELLOW, linewidth=1)
+    ax1.set_ylabel("Log10(Residual)")
+    ax1.set_title("Convergence History - RMS Residuals")
+    ax1.legend()
+    ax1.grid(True, alpha=0.15)
+
+    ax2.plot(iters, cl_hist, label="$C_l$", color=PURPLE, linewidth=1.5)
+    ax2.plot(iters, cd_hist, label="$C_d$", color=PINK, linewidth=1.5)
+    ax2.set_xlabel("Iteration")
+    ax2.set_ylabel("Coefficient")
+    ax2.set_title("Force Coefficient Convergence")
+    ax2.legend()
+    ax2.grid(True, alpha=0.15)
+
+    fig.tight_layout()
+    out = f"{save_path}/convergence_{aoa}.png"
+    fig.savefig(out, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return out
+
+
+def plot_cl_alpha(results: list[tuple[float, SU2Results]], save_path: str,
+                  experimental: Optional[list[tuple[float, float]]] = None) -> Optional[str]:
+    if not results:
+        return None
+    import matplotlib.pyplot as plt
+    _setup_matplotlib()
+
+    angles = [r[0] for r in results]
+    cl_vals = [r[1].cl for r in results]
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.plot(angles, cl_vals, "o-", color=PURPLE, linewidth=2, markersize=8, label="SU2 RANS (SA)")
+    if experimental:
+        exp_angles, exp_cl = zip(*experimental)
+        ax.plot(exp_angles, exp_cl, "s--", color=COMMENT, linewidth=1.5, markersize=5, label="Experimental")
+    ax.set_xlabel("Angle of Attack (deg)")
+    ax.set_ylabel("Lift Coefficient $C_l$")
+    ax.set_title("Lift Curve - NACA 0012, Re = 1x10^6, M = 0.15")
+    ax.legend()
+    ax.grid(True, alpha=0.15)
+    fig.tight_layout()
+    out = f"{save_path}/cl_vs_alpha.png"
+    fig.savefig(out, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return out
+
+
+def plot_cd_alpha(results: list[tuple[float, SU2Results]], save_path: str,
+                  experimental: Optional[list[tuple[float, float]]] = None) -> Optional[str]:
+    if not results:
+        return None
+    import matplotlib.pyplot as plt
+    _setup_matplotlib()
+
+    angles = [r[0] for r in results]
+    cd_vals = [r[1].cd for r in results]
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.plot(angles, cd_vals, "o-", color=PINK, linewidth=2, markersize=8, label="SU2 RANS (SA)")
+    if experimental:
+        exp_angles, exp_cd = zip(*experimental)
+        ax.plot(exp_angles, exp_cd, "s--", color=COMMENT, linewidth=1.5, markersize=5, label="Experimental")
+    ax.set_xlabel("Angle of Attack (deg)")
+    ax.set_ylabel("Drag Coefficient $C_d$")
+    ax.set_title("Drag Polar - NACA 0012, Re = 1x10^6, M = 0.15")
+    ax.legend()
+    ax.grid(True, alpha=0.15)
+    fig.tight_layout()
+    out = f"{save_path}/cd_vs_alpha.png"
+    fig.savefig(out, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return out
+
+
+def plot_drag_polar(results: list[tuple[float, SU2Results]], save_path: str,
+                     experimental: Optional[list[tuple[float, float]]] = None) -> Optional[str]:
+    if not results:
+        return None
+    import matplotlib.pyplot as plt
+    _setup_matplotlib()
+
+    cl_vals = [r[1].cl for r in results]
+    cd_vals = [r[1].cd for r in results]
+    angles = [r[0] for r in results]
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    sc = ax.scatter(cd_vals, cl_vals, c=angles, cmap="coolwarm", s=100, zorder=5)
+    ax.plot(cd_vals, cl_vals, color=COMMENT, linewidth=1, alpha=0.5, zorder=3)
+    cbar = fig.colorbar(sc, ax=ax, label="AoA (deg)")
+    if experimental:
+        exp_cd, exp_cl = zip(*experimental)
+        ax.plot(exp_cd, exp_cl, "s--", color=COMMENT, linewidth=1.5, markersize=5, label="Experimental")
+    for cd, cl, aoa in zip(cd_vals, cl_vals, angles):
+        ax.annotate(f"{aoa}deg", (cd, cl), xytext=(5, 5),
+                    textcoords="offset points", color=FG_COLOR, fontsize=9)
+    ax.set_xlabel("Drag Coefficient $C_d$")
+    ax.set_ylabel("Lift Coefficient $C_l$")
+    ax.set_title("Drag Polar - NACA 0012, Re = 1x10^6, M = 0.15")
+    ax.legend()
+    ax.grid(True, alpha=0.15)
+    fig.tight_layout()
+    out = f"{save_path}/drag_polar.png"
+    fig.savefig(out, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return out
+</code></pre></details></div>
+
+  <div class="code-block"><details><summary><code>run_tunnel.py</code> - Main pipeline orchestrator</summary><pre><code class="language-python">from __future__ import annotations
+
+import shutil
+from pathlib import Path
+
+from physics.geometry import generate_naca_4digit, save_dat_file
+from physics.mesher import MeshGenerator
+from physics.solver import SU2Config, SU2Solver
+from physics.post import Visualizer
+from physics.analysis import plot_convergence, plot_cl_alpha, plot_cd_alpha, plot_drag_polar
+from physics.validate import get_cl_alpha, get_cd_alpha, get_drag_polar
+
+NACA_NAME = "NACA 0012"
+NACA_PARAMS = (0, 0, 12)
+ANGLES_OF_ATTACK = [0, 4, 8, 12, 16]
+BASE_DIR = Path("./output")
+
+REGIME_LABELS = {
+    0: "Symmetric Baseline", 4: "Linear Lift", 8: "High Lift",
+    12: "Onset of Stall", 16: "Deep Stall",
+}
+
+
+def main():
+    if BASE_DIR.exists():
+        shutil.rmtree(BASE_DIR)
+    BASE_DIR.mkdir(parents=True)
+
+    solver = SU2Solver()
+    mesher = MeshGenerator(mesh_density=1.0)
+    viz = Visualizer()
+
+    all_results: list[tuple[float, SU2Results]] = []
+
+    for aoa in ANGLES_OF_ATTACK:
+        print(f"\n{'='*60}")
+        print(f"  AoA = {aoa} - {REGIME_LABELS[aoa]}")
+        print(f"{'='*60}")
+
+        aoa_dir = BASE_DIR / f"aoa_{aoa}"
+        aoa_dir.mkdir(parents=True, exist_ok=True)
+
+        print("  [1/4] Generating geometry...")
+        upper, lower = generate_naca_4digit(*NACA_PARAMS)
+        dat_path = aoa_dir / "airfoil.dat"
+        save_dat_file(upper, lower, str(dat_path))
+
+        print("  [2/4] Generating C-grid mesh with boundary layers...")
+        mesh_path = aoa_dir / "mesh.su2"
+        mesher.generate(str(dat_path), str(mesh_path))
+
+        print("  [3/4] Running SU2 CFD solver...")
+        config = SU2Config(angle_of_attack=aoa)
+        results = solver.run(config, mesh_path, aoa_dir, timeout=600)
+
+        if results.history:
+            print(f"    Iterations: {results.iterations}  CL={results.cl:.6f}  CD={results.cd:.6f}  Converged: {results.converged}")
+        else:
+            print("    WARNING: No convergence history parsed")
+
+        all_results.append((aoa, results))
+
+        print("  [4/4] Rendering visualizations...")
+        vtu_file = aoa_dir / f"flow_results_{aoa}.vtu"
+        surface_vtu = aoa_dir / f"surface_flow_{aoa}.vtu"
+
+        viz.export_velocity(str(vtu_file), str(aoa_dir), aoa=aoa)
+        viz.export_pressure(str(vtu_file), str(aoa_dir), aoa=aoa)
+        viz.export_mesh_visual(str(vtu_file), str(aoa_dir), aoa=aoa)
+        viz.export_surface_cp(str(surface_vtu), str(aoa_dir), aoa=aoa)
+        plot_convergence(results.history, str(aoa_dir), aoa=aoa)
+
+    print(f"\n{'='*60}")
+    print("  Generating aggregate Cl/Cd curves...")
+    print(f"{'='*60}")
+
+    experimental_cl = get_cl_alpha()
+    experimental_cd = get_cd_alpha()
+    experimental_polar = get_drag_polar()
+
+    plot_cl_alpha(all_results, str(BASE_DIR), experimental=experimental_cl)
+    plot_cd_alpha(all_results, str(BASE_DIR), experimental=experimental_cd)
+    plot_drag_polar(all_results, str(BASE_DIR), experimental=experimental_polar)
+
+    print(f"\n{'='*60}")
+    print("  Syncing images to docs/assets/images/...")
+    print(f"{'='*60}")
+
+    docs_img = Path("./docs/assets/images")
+    docs_img.mkdir(parents=True, exist_ok=True)
+
+    for f in BASE_DIR.glob("*.png"):
+        shutil.copy2(f, docs_img / f.name)
+
+    for aoa in ANGLES_OF_ATTACK:
+        aoa_src = BASE_DIR / f"aoa_{aoa}"
+        aoa_dst = docs_img / f"aoa_{aoa}"
+        aoa_dst.mkdir(parents=True, exist_ok=True)
+        for f in aoa_src.glob("*.png"):
+            shutil.copy2(f, aoa_dst / f.name)
+
+    print(f"\n  Done. Open docs/index.html in your browser.")
+
+
+if __name__ == "__main__":
+    main()
+</code></pre></details></div>
+
+</div>
+
+<footer class="site-footer">
+  <p>&copy; 2026 &middot; CFD Airfoil Explorer &middot; SU2 &middot; Gmsh &middot; Matplotlib &middot; Dracula Theme</p>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-python.min.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  document.querySelectorAll('.code-block details').forEach(d => {
+    d.addEventListener('toggle', function() {
+      if (this.open) {
+        Prism.highlightAllUnder(this);
+      }
+    });
+  });
+});
+</script>
+</body>
+</html>

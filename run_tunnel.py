@@ -84,7 +84,6 @@ def main():
 
         viz.export_velocity(str(vtu_file), str(aoa_dir), aoa=aoa)
         viz.export_pressure(str(vtu_file), str(aoa_dir), aoa=aoa)
-        viz.export_mesh_visual(str(vtu_file), str(aoa_dir), aoa=aoa)
         viz.export_surface_cp(str(surface_vtu), str(aoa_dir), aoa=aoa)
         plot_convergence(results.history, str(aoa_dir), aoa=aoa)
 

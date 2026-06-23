@@ -182,42 +182,6 @@ class Visualizer:
         plt.close(fig)
         return out
 
-    def export_mesh_visual(
-        self,
-        vtu_file: str,
-        save_path: str,
-        aoa: int = 0,
-    ) -> Optional[str]:
-        """Mesh wireframe visualization using the VTU solution mesh."""
-        if not Path(vtu_file).exists():
-            print(f"  VTU not found: {vtu_file}")
-            return None
-
-        mesh = pv.read(vtu_file)
-        # Remove data arrays for cleaner wireframe rendering
-        for key in list(mesh.point_data.keys()):
-            del mesh.point_data[key]
-
-        plotter = pv.Plotter(off_screen=self.off_screen, window_size=self.window_size)
-        plotter.set_background(BG_COLOR)
-
-        plotter.add_mesh(
-            mesh,
-            color="#44475a",
-            style="wireframe",
-            line_width=0.3,
-            show_edges=True,
-        )
-
-        # Tight zoom
-        plotter.view_xy()
-        plotter.camera.tight(padding=0.15)
-
-        out = f"{save_path}/mesh_{aoa}.png"
-        plotter.screenshot(out)
-        plotter.close()
-        return out
-
     def export_surface_cp(
         self,
         surface_vtu: str,

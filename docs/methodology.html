@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="CFD methodology and mesh generation for airfoil analysis">
+  <title>CFD Airfoil Explorer - Methodology</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xz/fonts@1/serve/meslo-lg.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="top-nav">
+  <a href="index.html">Home</a>
+  <a href="methodology.html">Methodology</a>
+  <a href="airfoils/naca0012.html">NACA 0012</a>
+  <a href="implementation.html">Implementation</a>
+  <a href="paraview.html">ParaView</a>
+</div>
+
+<div class="container">
+
+  <div class="hero" style="padding:2rem 0 0.5rem">
+    <h1>Methodology <span style="color:var(--cyan)">&amp; Mesh</span></h1>
+    <p>The automated CFD pipeline: geometry &rarr; C-grid mesh &rarr; SU2 RANS solver &rarr; post-processing &rarr; visualization.</p>
+  </div>
+
+  <hr class="divider">
+
+  <h2>Pipeline Overview</h2>
+
+  <div class="card-grid">
+    <div class="card">
+      <span class="tag">Mesh</span>
+      <h4>C-Grid with Boundary Layer</h4>
+      <p>Hybrid mesh: structured quad boundary layer (20 layers, $y^+ \approx 1$) around the airfoil, transitioning to unstructured triangles in the farfield. C-shaped outer boundary with semicircular inlet (R=15 chords) and rectangular outlet (30 chords downstream).</p>
+    </div>
+    <div class="card">
+      <span class="tag">Solver</span>
+      <h4>SU2 RANS (SA)</h4>
+      <p>Steady compressible Reynolds-Averaged Navier-Stokes equations closed by the Spalart-Allmaras one-equation turbulence model. ROE scheme with 1st-order spatial discretization (MUSCL=NO). CFL adaptively ramps from 0.01 to 5.0 over 2000 iterations.</p>
+    </div>
+    <div class="card">
+      <span class="tag">Post-Processing</span>
+      <h4>Matplotlib + PyVista</h4>
+      <p>Off-screen rendering of velocity contours with streamlines, pressure field, mesh topology, convergence history, and aggregate $C_l$/$C_d$ curves with experimental comparison where available.</p>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <h2>Airfoil Theory</h2>
+
+  <p>Airfoils are described mathematically by the NACA 4-digit parameterization, defined by three parameters: maximum camber ($m$), position of maximum camber ($p$), and maximum thickness ($t$, in percent of chord). For symmetric airfoils ($m=0, p=0$), the upper and lower surfaces are given by the thickness distribution:</p>
+
+  <p>$$y_t = 5t\left(0.2969\sqrt{x} - 0.1260x - 0.3516x^2 + 0.2843x^3 - 0.1015x^4\right)$$</p>
+
+  <p>The camber line is zero for symmetric airfoils, giving $y_{\text{upper}} = +y_t$ and $y_{\text{lower}} = -y_t$. For cambered airfoils, the thickness is applied perpendicular to the camber line.</p>
+
+  <h3>Flight Regimes</h3>
+  <p>The standard 5-angle sweep captures the full aerodynamic envelope:</p>
+  <table>
+    <tr><th>AoA</th><th>Regime</th><th>Flow State</th><th>Key Physics</th></tr>
+    <tr><td>0&deg;</td><td>Symmetric Baseline</td><td>Fully attached</td><td>Zero lift, validates solver symmetry</td></tr>
+    <tr><td>4&deg;</td><td>Linear Lift</td><td>Fully attached</td><td>$C_l \approx 2\pi\alpha$, linear regime</td></tr>
+    <tr><td>8&deg;</td><td>High Lift</td><td>Attached, suction peak</td><td>Near nonlinear regime, max L/D</td></tr>
+    <tr><td>12&deg;</td><td>Onset of Stall</td><td>TE separation begins</td><td>Recirculation develops in wake</td></tr>
+    <tr><td>16&deg;</td><td>Deep Stall</td><td>Massively separated</td><td>Large recirculating wake dominates</td></tr>
+  </table>
+
+  <p>Flow conditions: $M = 0.15$, $Re = 1 \times 10^6$, chord = 1 m, standard air at sea level.</p>
+
+  <h3>Lift Curve Slope</h3>
+  <p>For a thin symmetric airfoil, potential flow theory predicts $C_l = 2\pi\alpha$ (0.110 per degree). Our RANS results produce a slope of approximately <strong class="hl-purple">0.109 per degree</strong> from 0&deg; to 8&deg; - matching theory within 1%. This validates that the solver captures inviscid lift generation correctly despite the first-order spatial discretization.</p>
+
+  <hr class="divider">
+
+  <h2>Mesh Generation</h2>
+
+  <h3>C-Grid vs O-Grid Topology</h3>
+  <p>A C-grid topology was chosen over the simpler O-grid for superior wake resolution. The C-grid aligns the mesh with the downstream flow, clustering cells in the wake region where drag-producing momentum deficits develop. An O-grid wraps around the airfoil with a circular outer boundary, but its trailing edge is bounded by the circular arc - limiting refinement in the wake. The C-grid's rectangular outlet section (extending 30 chords downstream) ensures the wake is fully captured within the refined region.</p>
+
+  <h3>Cosine Spacing for LE/TE Resolution</h3>
+  <p>The 200 airfoil surface points are distributed using cosine spacing: $x = (1 - \cos\beta)/2$ for $\beta \in [0, \pi]$. This clusters points near the leading and trailing edges where curvature is highest, producing first x/c values as small as $6.2 \times 10^{-5}$ at the LE. The LE region requires fine resolution to capture the suction peak and rapid pressure gradients; the TE needs it for accurate Kutta condition enforcement and boundary layer development.</p>
+
+  <h3>Boundary Layer Parameters</h3>
+  <p>Twenty structured quad layers grow geometrically at ratio 1.15 from a first-layer height of $2 \times 10^{-5}$ chords. At $Re = 1 \times 10^6$, this yields $Y^+_{\text{max}} = 1.04$ and $Y^+_{\text{mean}} = 0.01$ - well within the $Y^+ < 1$ requirement for the Spalart-Allmaras turbulence model (which requires integration through the viscous sublayer). The structured BL transitions smoothly to unstructured triangles via Gmsh's BoundaryLayer field with <code>setAsBoundaryLayer()</code>.</p>
+
+  <h3>Farfield Sizing and Mesh Algorithm</h3>
+  <p>The farfield boundary forms a C-shape: a semicircle of radius 15 chords centered at the leading edge, with top/bottom walls extending to $x = 30$ chords downstream. This ensures farfield boundary conditions do not contaminate the near-field solution. The Frontal-Delaunay algorithm (Gmsh Algorithm 6) generates high-quality unstructured triangles in the farfield, while a Distance+Threshold field smoothly transitions from the fine surface sizing (0.003 chords) to the coarse farfield sizing (1.2 chords).</p>
+
+  <h3>Why Not Higher-Order?</h3>
+  <p>MUSCL (2nd-order) reconstruction was tested but caused divergence on the C-grid with the ROE scheme and SA model. The 1st-order scheme is numerically robust and produces qualitatively correct flow fields, though drag is overpredicted by approximately 10&times; compared to experimental data. A finer mesh or wall-function approach would be needed to enable stable 2nd-order solutions.</p>
+
+  <h3>Mesh Gallery</h3>
+
+  <div class="figure-row">
+    <div class="figure wide">
+      <img src="assets/images/mesh_green.png" alt="Full C-grid mesh topology" loading="lazy">
+      <div class="figure-caption">Full C-grid topology - C-shaped farfield with semicircular inlet (R=15c) and rectangular outlet (30c downstream)</div>
+    </div>
+    <div class="figure">
+      <img src="assets/images/mesh_green2.png" alt="C-grid medium zoom" loading="lazy">
+      <div class="figure-caption">Medium zoom - structured boundary layers transitioning to unstructured farfield triangles</div>
+    </div>
+    <div class="figure">
+      <img src="assets/images/mesh_green3.png" alt="Leading edge close-up" loading="lazy">
+      <div class="figure-caption">Leading edge close-up - 20 structured quad layers at Y$^+ \approx 1$ around the airfoil surface</div>
+    </div>
+  </div>
+
+  <h3>Mesh Statistics</h3>
+  <table>
+    <tr><th>Parameter</th><th>Value</th></tr>
+    <tr><td>Mesh Points</td><td>31,927</td></tr>
+    <tr><td>Mesh Cells</td><td>63,141</td></tr>
+    <tr><td>Boundary Layers</td><td>20 layers</td></tr>
+    <tr><td>BL Growth Ratio</td><td>1.15</td></tr>
+    <tr><td>First Layer Height</td><td>$2 \times 10^{-5}$ chords</td></tr>
+    <tr><td>Y<sup>+</sup> (max)</td><td>1.04</td></tr>
+    <tr><td>Y<sup>+</sup> (mean)</td><td>0.01</td></tr>
+    <tr><td>Element Mix</td><td>Quads (boundary layer) + Triangles (farfield)</td></tr>
+    <tr><td>Farfield Algorithm</td><td>Frontal-Delaunay (Gmsh Algo 6)</td></tr>
+    <tr><td>Airfoil Surface Sizing</td><td>0.003 chords</td></tr>
+    <tr><td>Farfield Sizing</td><td>1.2 chords</td></tr>
+  </table>
+
+  <hr class="divider">
+
+  <h2>Simulation Parameters</h2>
+  <table>
+    <tr><th>Parameter</th><th>Value</th></tr>
+    <tr><td>Flow Solver</td><td>SU2 8.4.0 - Compressible RANS</td></tr>
+    <tr><td>Turbulence Model</td><td>Spalart-Allmaras (SA)</td></tr>
+    <tr><td>Convective Scheme</td><td>ROE - 1st-order (MUSCL=NO)</td></tr>
+    <tr><td>Mach Number</td><td>0.15</td></tr>
+    <tr><td>Reynolds Number</td><td>$1 \times 10^6$</td></tr>
+    <tr><td>CFL Number</td><td>0.01 &rarr; 5.0 (ramp over 2000 iters)</td></tr>
+    <tr><td>Iterations per AoA</td><td>2,000</td></tr>
+    <tr><td>Angles of Attack</td><td>0&deg;, 4&deg;, 8&deg;, 12&deg;, 16&deg;</td></tr>
+    <tr><td>Convergence Criterion</td><td>RMS Density &lt; $10^{-6}$</td></tr>
+  </table>
+
+</div>
+
+<footer class="site-footer">
+  <p>&copy; 2026 &middot; CFD Airfoil Explorer &middot; SU2 &middot; Gmsh &middot; Matplotlib &middot; Dracula Theme</p>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  renderMathInElement(document.body, {
+    delimiters: [
+      { left: "$$", right: "$$", display: true },
+      { left: "$", right: "$", display: false }
+    ],
+    throwOnError: false
+  });
+});
+</script>
+</body>
+</html>
