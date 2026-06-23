@@ -1,109 +1,128 @@
-import os
+from __future__ import annotations
+
 import shutil
-import pyvista as pv
-from jinja2 import Template
-import numpy as np
+from pathlib import Path
 
 from physics.geometry import generate_naca_4digit, save_dat_file
-from physics.mesher import generate_su2_mesh
-from physics.solver import run_su2
+from physics.mesher import MeshGenerator
+from physics.solver import SU2Config, SU2Solver
+from physics.post import Visualizer
+from physics.analysis import (
+    plot_convergence,
+    plot_cl_alpha,
+    plot_cd_alpha,
+    plot_drag_polar,
+)
+from physics.validate import get_cl_alpha, get_cd_alpha, get_drag_polar
 
 # --- Parameters ---
 NACA_NAME = "NACA 0012"
 NACA_PARAMS = (0, 0, 12)  # m, p, t
 ANGLES_OF_ATTACK = [0, 4, 8, 12, 16]
-BASE_DIR = "./output"
-TEMPLATE_CFG = "./templates/su2_template.cfg"
-REPORT_TEMPLATE = "./templates/report_base.html"
+BASE_DIR = Path("./output")
 
-# Dracula Theme Constants
-BG_COLOR = "#282a36"
-CMAP = ["#bd93f9", "#ff79c6", "#f1fa8c"]  # Purple -> Pink -> Yellow
+REGIME_LABELS = {
+    0: "Symmetric Baseline",
+    4: "Linear Lift",
+    8: "High Lift",
+    12: "Onset of Stall",
+    16: "Deep Stall",
+}
 
-def export_visuals(vtu_file, save_path, aoa):
-    """Generates Dracula-themed visual assets using PyVista."""
-    if not os.path.exists(vtu_file):
-        print(f"VTU file not found: {vtu_file}")
-        return
-
-    mesh = pv.read(vtu_file)
-    
-    # 1. Velocity Plot with Dense Streamlines
-    plotter_vel = pv.Plotter(off_screen=True, window_size=[1000, 800])
-    plotter_vel.set_background(BG_COLOR)
-    
-    # Add contours
-    plotter_vel.add_mesh(mesh, scalars="Velocity_Magnitude", cmap=CMAP, show_scalar_bar=False)
-    
-    # Dense Streamlines for separation
-    streamlines = mesh.streamlines_evenly_spaced_2D(
-        vectors="Velocity",
-        start_x=0.0, start_y=-2.0, end_x=0.0, end_y=2.0,
-        n_points=300
-    )
-    plotter_vel.add_mesh(streamlines, color="white", line_width=1.5, opacity=0.6)
-    
-    plotter_vel.view_xy()
-    plotter_vel.screenshot(f"{save_path}/velocity.png")
-    plotter_vel.close()
-    
-    # 2. Pressure Plot
-    plotter_pres = pv.Plotter(off_screen=True, window_size=[1000, 800])
-    plotter_pres.set_background(BG_COLOR)
-    plotter_pres.add_mesh(mesh, scalars="Pressure", cmap=CMAP, show_scalar_bar=False)
-    plotter_pres.view_xy()
-    plotter_pres.screenshot(f"{save_path}/pressure.png")
-    plotter_pres.close()
 
 def main():
-    # Setup Output
-    if os.path.exists(BASE_DIR):
+    if BASE_DIR.exists():
         shutil.rmtree(BASE_DIR)
-    os.makedirs(BASE_DIR)
-    
-    results_data = []
+    BASE_DIR.mkdir(parents=True)
+
+    solver = SU2Solver()
+    mesher = MeshGenerator(mesh_density=1.0)
+    viz = Visualizer()
+
+    all_results: list[tuple[float, SU2Results]] = []
 
     for aoa in ANGLES_OF_ATTACK:
-        print(f"\n--- Processing AoA = {aoa} degrees ---")
-        aoa_dir = os.path.join(BASE_DIR, f"aoa_{aoa}")
-        os.makedirs(aoa_dir, exist_ok=True)
-        
-        # Step 1: Geometry
-        upper, lower = generate_naca_4digit(*NACA_PARAMS)
-        dat_path = f"{aoa_dir}/airfoil.dat"
-        save_dat_file(upper, lower, dat_path)
-        
-        # Step 2: Mesh
-        mesh_path = f"{aoa_dir}/mesh.su2"
-        generate_su2_mesh(dat_path, mesh_path, mesh_density=1.0)
-        
-        # Step 3: Run SU2
-        run_su2(TEMPLATE_CFG, mesh_path, aoa, aoa_dir)
-        
-        # Step 4: Post-Process (Assuming SU2 writes flow_results.vtu)
-        vtu_file = os.path.join(aoa_dir, "flow_results.vtu")
-        export_visuals(vtu_file, aoa_dir, aoa)
-        
-        # Add metadata for HTML
-        results_data.append({
-            "aoa": aoa,
-            "regime": "Symmetric Baseline" if aoa == 0 else "Linear Lift" if aoa == 4 else "High Lift" if aoa == 8 else "Onset of Stall" if aoa == 12 else "Deep Stall",
-            "cl": "0.00", # Placeholder
-            "cd": "0.00", # Placeholder
-            "cl_cd": "0.00" # Placeholder
-        })
+        print(f"\n{'='*60}")
+        print(f"  AoA = {aoa}° — {REGIME_LABELS[aoa]}")
+        print(f"{'='*60}")
 
-    # Step 5: Compile HTML
-    print("\nCompiling HTML report...")
-    with open(REPORT_TEMPLATE, 'r') as f:
-        template = Template(f.read())
-    
-    html_output = template.render(naca_name=NACA_NAME, results=results_data)
-    
-    with open(os.path.join(BASE_DIR, "index.html"), 'w') as f:
-        f.write(html_output)
-    
-    print("Wind tunnel run complete. Report available at output/index.html")
+        aoa_dir = BASE_DIR / f"aoa_{aoa}"
+        aoa_dir.mkdir(parents=True, exist_ok=True)
+
+        # ── Step 1: Geometry ──
+        print("  [1/4] Generating geometry...")
+        upper, lower = generate_naca_4digit(*NACA_PARAMS)
+        dat_path = aoa_dir / "airfoil.dat"
+        save_dat_file(upper, lower, str(dat_path))
+
+        # ── Step 2: Mesh ──
+        print("  [2/4] Generating C-grid mesh with boundary layers...")
+        mesh_path = aoa_dir / "mesh.su2"
+        mesher.generate(str(dat_path), str(mesh_path))
+
+        # ── Step 3: Run SU2 ──
+        print("  [3/4] Running SU2 CFD solver...")
+        config = SU2Config(angle_of_attack=aoa)
+
+        results = solver.run(config, mesh_path, aoa_dir, timeout=600)
+
+        if results.history:
+            print(
+                f"    Iterations: {results.iterations}"
+                f"  CL={results.cl:.6f}  CD={results.cd:.6f}"
+                f"  Converged: {results.converged}"
+            )
+        else:
+            print("    WARNING: No convergence history parsed")
+
+        all_results.append((aoa, results))
+
+        # ── Step 4: Visualizations ──
+        print("  [4/4] Rendering visualizations...")
+        vtu_file = aoa_dir / f"flow_results_{aoa}.vtu"
+        surface_vtu = aoa_dir / f"surface_flow_{aoa}.vtu"
+
+        viz.export_velocity(str(vtu_file), str(aoa_dir), aoa=aoa)
+        viz.export_pressure(str(vtu_file), str(aoa_dir), aoa=aoa)
+        viz.export_mesh_visual(str(vtu_file), str(aoa_dir), aoa=aoa)
+        viz.export_surface_cp(str(surface_vtu), str(aoa_dir), aoa=aoa)
+        plot_convergence(results.history, str(aoa_dir), aoa=aoa)
+
+    # ── Aggregate plots ──
+    print(f"\n{'='*60}")
+    print("  Generating aggregate Cl/Cd curves...")
+    print(f"{'='*60}")
+
+    experimental_cl = get_cl_alpha()
+    experimental_cd = get_cd_alpha()
+    experimental_polar = get_drag_polar()
+
+    plot_cl_alpha(all_results, str(BASE_DIR), experimental=experimental_cl)
+    plot_cd_alpha(all_results, str(BASE_DIR), experimental=experimental_cd)
+    plot_drag_polar(all_results, str(BASE_DIR), experimental=experimental_polar)
+
+    # ── Sync images to docs/assets/images/ ──
+    print(f"\n{'='*60}")
+    print("  Syncing images to docs/assets/images/...")
+    print(f"{'='*60}")
+
+    docs_img = Path("./docs/assets/images")
+    docs_img.mkdir(parents=True, exist_ok=True)
+
+    # Aggregate plots
+    for f in BASE_DIR.glob("*.png"):
+        shutil.copy2(f, docs_img / f.name)
+
+    # Per-AoA images
+    for aoa in ANGLES_OF_ATTACK:
+        aoa_src = BASE_DIR / f"aoa_{aoa}"
+        aoa_dst = docs_img / f"aoa_{aoa}"
+        aoa_dst.mkdir(parents=True, exist_ok=True)
+        for f in aoa_src.glob("*.png"):
+            shutil.copy2(f, aoa_dst / f.name)
+
+    print(f"\n  Done. Open docs/index.html in your browser.")
+
 
 if __name__ == "__main__":
     main()

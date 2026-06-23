@@ -12,3 +12,10 @@ wheels/
 # Project specific
 output/
 .DS_Store
+
+# Log files
+*.log
+run_output.txt
+
+# MyPy cache
+.mypy_cache/
