@@ -37,18 +37,29 @@ Always reference Soccer CFD when stuck on architecture or visualization question
 - `post.py` - (placeholder) Field visualizations (velocity, pressure, mesh) created in ParaView
 - `analysis.py` - Convergence plots, Cl/Cd curves, drag polar with experimental overlay
 - `validate.py` - NACA 0012 experimental data (Ladson 1988, Abbott 1949)
+- `optimize.py` - `run_optimization()` performs CST-based airfoil shape optimization:
+  - 16 CST design variables (8 upper + 8 lower Bernstein weights, matching NeuralFoil internal)
+  - NeuralFoil surrogate evaluation via `get_aero_from_kulfan_parameters()` (~1000 evals/sec)
+  - 9 constraints: min thickness (>=12%), LE radius (0.007-0.020), cross-over prevention,
+    area (+-15%), max camber (<=2%), thickness location (0.25-0.40c)
+  - SLSQP gradient-based optimizer (scipy) - finite differences, no CasADi MX type issues
+  - Objective: minimize Cd at fixed Cl with strong Cl tracking penalty
+  - ~105 iterations, ~2 seconds convergence, + SU2 verification (~10 min)
+  - `plot_airfoil_comparison()` - Dracula-themed shape overlay plot (NACA 0012 vs optimized)
 
 ### Workflow
-`run_tunnel.py` orchestrates: geometry -> C-grid mesh -> SU2 solver -> convergence plots
--> aggregate plots. All images go directly to `docs/assets/images/` (no sync step).
-`output/` contains only simulation artifacts and ParaView state files.
+For standard multi-angle analysis: `run_tunnel.py` orchestrates geometry -> C-grid mesh -> SU2 solver -> convergence plots -> aggregate plots.
+For single-airfoil optimization: `run_optimization.py` runs CST optimization (NeuralFoil) -> meshes optimized shape -> runs SU2 RANS -> generates comparison.
+All images go directly to `docs/assets/images/` (no sync step).
+`output/` and `output_optimized/` contain only simulation artifacts and ParaView state files.
 
 5 AoAs: [0, 4, 8, 12, 16] with regime labels
 (Symmetric Baseline, Linear Lift, High Lift, Onset of Stall, Deep Stall)
 
-### Entrypoint
+### Entrypoints
 ```bash
-uv run python run_tunnel.py
+uv run python run_tunnel.py         # Standard multi-angle analysis (~30 min)
+uv run python run_optimization.py   # Single-airfoil CST optimization (~2 sec + SU2 ~10 min)
 ```
 
 ---
@@ -120,16 +131,18 @@ uv run python run_tunnel.py
 - `plot_cl_alpha()` - Lift curve vs angle of attack
 - `plot_cd_alpha()` - Drag vs angle of attack
 - `plot_drag_polar()` - Cl vs Cd with experimental overlay
-- All output goes directly to `docs/assets/images/` (per-AoA in subfolders)
+- `plot_airfoil_comparison()` - NACA 0012 vs optimized shape overlay, Dracula-themed
+- All output goes directly to `docs/assets/images/` (per-AoA in subfolders, optimized in `optimized/` subfolder)
 
 ### Website (Multi-Page)
 - `docs/index.html` - Home: project intro, CFD relevance (aviation/auto/energy), rapid iteration
 - `docs/methodology.html` - Theory + Methodology + Mesh: NACA equations, flight regimes table, C-grid design, 3 mesh images, mesh stats table, sim parameters
 - `docs/airfoils/naca0012.html` - Airfoil-specific results: summary table, aggregate plots, velocity/pressure galleries (5-up), per-AoA metric cards + visualizations
+- `docs/airfoils/naca0012_optimized.html` - Optimized shape results: shape comparison, velocity/pressure contours, real-life match, optimization setup
 - `docs/implementation.html` - How to run, code architecture, SU2 config reference, 5 expandable source blocks
 - `docs/paraview.html` - ParaView walkthrough with 11+ visualization recipes
 - `paraview_recipes.md` - (project root, untracked) ParaView step-by-step in markdown
-- All pages share `nav.top-nav` bar: **Home | Methodology | NACA 0012 | Implementation | ParaView**
+- All pages share `nav.top-nav` bar: **Home | Methodology | NACA 0012 | NACA 0012 Opt | Implementation | ParaView**
 - CSS is minimalist Dracula inspired by `/Users/ajeet/Projects/Digital\ CV`: `#21222c` card bg, `border-left` accent, no hover lift/shadow, no gradients, monospace throughout
 - Images go directly to `docs/assets/images/` - no sync step needed
 - `docs/` is the GitHub Pages root
@@ -148,6 +161,36 @@ uv run python run_tunnel.py
 | 16deg | Deep Stall | 1.6082 | 0.4314 | 3.7 | Yes |
 
 Lift curve slope: 0.109 per degree (matches theoretical 2pi within 1%)
+
+---
+
+## Optimization Results (2026-06-24)
+
+### NACA 0012 Baseline at 4deg (NeuralFoil)
+| Metric | Value |
+|--------|------:|
+| CL | 0.4453 |
+| CD | 0.0057 |
+| L/D | 78.1 |
+
+### Optimized Shape at 4deg (SU2 RANS verified)
+| Metric | Baseline | Optimized (NeuralFoil) | Optimized (SU2) | Change |
+|--------|---------:|----------------------:|----------------:|:------:|
+| CL | 0.4453 | 0.4453 | 0.3686 | -17.2% |
+| CD | 0.0969 | 0.0052 | 0.0791 | -18.4% |
+| L/D | 4.6 | 86.1 | 4.7 | +2.2% |
+
+### Key Findings
+- NeuralFoil is **optimistic**: predicts 94.7% Cd reduction, SU2 shows 18.4%
+- SU2 Cl mismatch: optimized shape generates less lift at 4deg (0.369 vs 0.445)
+- Real Cd reduction: 18.4% (0.0791 vs 0.097 baseline) is still meaningful
+- NeuralFoil serves well as a fast surrogate (~2 sec) but SU2 verification is essential
+- The C-grid with 1st-order scheme (MUSCL=NO) adds ~10x numerical dissipation over XFoil
+
+### Optimizer Performance
+- SLSQP converges in ~105 iterations, ~2 seconds, ~2000 function evaluations
+- LE radius constraint is the hardest to satisfy (converges to boundary at 0.007)
+- Cl tracking: NeuralFoil matches target exactly, SU2 undershoots by 17%
 
 ---
 
@@ -170,6 +213,7 @@ Lift curve slope: 0.109 per degree (matches theoretical 2pi within 1%)
 ```bash
 uv sync                           # Install/update dependencies
 uv run python run_tunnel.py       # Full pipeline (~30 min)
+uv run python run_optimization.py # Single-airfoil optimization (~2 sec + SU2 ~10 min)
 # No build step - static HTML hand-authored; edit files directly in docs/
 open docs/index.html              # View portfolio site
 ```
@@ -180,6 +224,12 @@ open docs/index.html              # View portfolio site
    `docs/assets/images/` instead of `output/` with a separate sync step
 3. **Velocity/Pressure galleries**: naca0012.html now has 5-up comparison grids
 4. **Output folder clean**: `output/` contains only simulation files and ParaView states
+5. **Optimization module added**: `optimize.py` with CST param + NeuralFoil + SLSQP + 9 constraints
+6. **CST coordinate bug fixed**: `build_airfoil_from_cst()` had TE lower point missing,
+   causing TE_thickness=1.0 and wrong constraint values. Fixed coordinate ordering.
+7. **Optimization solver changed**: AeroSandbox Opti/IPOPT dropped due to CasADi MX type
+   incompatibilities with KulfanAirfoil.to_airfoil(). Replaced with scipy SLSQP + finite
+   differences + penalty method (~2 sec, 100-150 iters, 0.01 Cd tolerance).
 
 ## Color Scheme (Dracula)
 - Background: `#282a36`

@@ -16,7 +16,8 @@
 <div class="top-nav">
   <a href="index.html">Home</a>
   <a href="methodology.html">Methodology</a>
-  <a href="airfoils/naca0012.html">NACA 0012</a>
+  <a href="airfoils/naca0012.html">Airfoil Analysis</a>
+  <a href="airfoils/naca0012_optimized.html">Optimization</a>
   <a href="implementation.html">Implementation</a>
   <a href="paraview.html">ParaView</a>
 </div>
@@ -84,6 +85,8 @@
 
   <p>The pipeline is designed to be extensible: any NACA 4-digit airfoil can be substituted, run through the same workflow, and added to the atlas.</p>
 
+  <p>The <a href="implementation.html">Implementation</a> page documents the full code architecture: the six <code>physics/</code> modules (geometry, meshing, solving, post-processing, analysis, validation, and optimization), the SU2 configuration reference with all solver parameters used in production, and expandable source blocks for every module.</p>
+
   <div class="callout">
     <div class="callout-tag">Starting Point</div>
     <a href="airfoils/naca0012.html">NACA 0012 &rarr;</a> - Symmetric baseline airfoil with full CFD results across 5 angles of attack.
@@ -94,6 +97,20 @@
 <footer class="site-footer">
   <p>&copy; 2026 &middot; CFD Airfoil Explorer &middot; SU2 &middot; Gmsh &middot; Matplotlib &middot; Dracula Theme</p>
 </footer>
+
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  renderMathInElement(document.body, {
+    delimiters: [
+      { left: "$$", right: "$$", display: true },
+      { left: "$", right: "$", display: false }
+    ],
+    throwOnError: false
+  });
+});
+</script>
 
 </body>
 </html>

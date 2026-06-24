@@ -76,3 +76,45 @@ def save_dat_file(
     """
     coords = np.vstack((upper[::-1], lower[1:]))
     np.savetxt(filename, coords, fmt="%f %f")
+
+
+def extract_cst_coefficients(
+    dat_file: str,
+    n_upper: int = 6,
+    n_lower: int = 6,
+) -> tuple[list[float], list[float]]:
+    """Fit CST coefficients to an existing airfoil dat file."""
+    from aerosandbox import Airfoil
+
+    af = Airfoil(name="fit", coordinates=dat_file)
+    upper_w = af.upper_weights(n_coeff=n_upper)
+    lower_w = af.lower_weights(n_coeff=n_lower)
+    return upper_w.tolist(), lower_w.tolist()
+
+
+def cst_to_dat_file(
+    upper_weights: list[float],
+    lower_weights: list[float],
+    filename: str,
+    num_points: int = 200,
+) -> None:
+    """Generate a .dat file from CST coefficients."""
+    from aerosandbox import Airfoil
+
+    af = Airfoil(
+        name="cst_airfoil",
+        coordinates=None,
+        upper_weights=upper_weights,
+        lower_weights=lower_weights,
+    )
+
+    beta = np.linspace(0, np.pi, num_points)
+    x = (1 - np.cos(beta)) / 2
+
+    upper = af.upper_coordinates(x)
+    lower = af.lower_coordinates(x)
+
+    upper_arr = np.column_stack([upper[0], upper[1]])
+    lower_arr = np.column_stack([lower[0], lower[1]])
+
+    save_dat_file(upper_arr, lower_arr, filename)

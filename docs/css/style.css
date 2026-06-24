@@ -253,6 +253,31 @@ td { padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.04); }
   width: 100%; height: auto; display: block;
 }
 
+/* --- Comparison grid (baseline vs optimized side-by-side) --- */
+.compare-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 16px 0;
+}
+.compare-figure {
+  background: var(--card-bg);
+  border: 1px solid var(--current-line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.compare-figure img { width: 100%; height: auto; display: block; }
+.compare-label {
+  font-size: 0.75em;
+  color: var(--cyan);
+  text-align: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--current-line);
+}
+@media (max-width: 720px) {
+  .compare-grid { grid-template-columns: 1fr; }
+}
+
 /* --- Gallery grid (5-up velocity/pressure comparison) --- */
 .gallery-section { margin: 30px 0; }
 .gallery-section h3 { margin-bottom: 8px; }

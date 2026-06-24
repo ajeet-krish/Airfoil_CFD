@@ -1,14 +1,15 @@
 # CFD Airfoil Explorer
 
-Automated CFD analysis of NACA 4-digit airfoils across multiple angles of attack using SU2 RANS (Spalart-Allmaras) on high-quality C-grid meshes with structured boundary layers. Field visualizations rendered in ParaView; convergence and aggregate plots generated via matplotlib. Static multi-page Dracula-themed portfolio website.
+Automated CFD analysis of NACA 4-digit airfoils across multiple angles of attack using SU2 RANS (Spalart-Allmaras) on high-quality C-grid meshes with structured boundary layers. Includes airfoil shape optimization via CST parameterization + NeuralFoil surrogate + SU2 verification. Field visualizations rendered in ParaView; convergence and aggregate plots generated via matplotlib. Static multi-page Dracula-themed portfolio website.
 
 ## Features
 
-- **Modular Architecture**: Decoupled `physics/` modules — geometry, meshing, solving, post-processing
+- **Modular Architecture**: Decoupled `physics/` modules — geometry, meshing, solving, post-processing, optimization
 - **C-Grid Meshing**: Hybrid structured/unstructured mesh via Gmsh (20 BL layers, Y+~1, 32K points)
 - **SU2 RANS Solver**: Compressible RANS with Spalart-Allmaras turbulence model
+- **Airfoil Optimization**: CST parameterization with 16 Bernstein weights, NeuralFoil surrogate evaluation, SLSQP gradient-based optimizer, SU2 RANS verification
 - **ParaView Visualizations**: Velocity contours and pressure fields rendered interactively
-- **Code-Generated Plots**: Convergence history, Cl/Cd curves, drag polar with experimental validation
+- **Code-Generated Plots**: Convergence history, Cl/Cd curves, drag polar, airfoil shape overlays with experimental validation
 - **Extensible**: Add new airfoils by running the same pipeline — each gets its own results page
 
 ## Results — NACA 0012
@@ -34,8 +35,11 @@ Automated CFD analysis of NACA 4-digit airfoils across multiple angles of attack
 # Install dependencies
 uv sync
 
-# Run the full pipeline (5 AoAs, ~30 min)
+# Run the full multi-angle pipeline (5 AoAs, ~30 min)
 uv run python run_tunnel.py
+
+# Run airfoil shape optimization at 4deg (~2 sec + SU2 ~10 min)
+uv run python run_optimization.py
 
 # View results
 open docs/index.html
@@ -51,18 +55,23 @@ open docs/index.html
 │   ├── solver.py        SU2Config + SU2Solver + SU2Results
 │   ├── post.py          (placeholder — field vis done in ParaView)
 │   ├── analysis.py      Convergence, Cl/Cd, drag polar with validation
-│   └── validate.py      NACA 0012 experimental data (Ladson 1988)
-├── run_tunnel.py        Main pipeline orchestrator
+│   ├── validate.py      NACA 0012 experimental data (Ladson 1988)
+│   └── optimize.py      CST airfoil optimization + NeuralFoil + SU2 verification
+├── run_tunnel.py        Main multi-angle pipeline orchestrator
+├── run_optimization.py  Single-airfoil CST optimization pipeline
 ├── docs/
 │   ├── index.html              Home page
 │   ├── methodology.html        Theory, methodology, mesh design
 │   ├── implementation.html     Code architecture and source
 │   ├── paraview.html           ParaView walkthrough
 │   ├── airfoils/
-│   │   └── naca0012.html       NACA 0012 results
+│   │   ├── naca0012.html             NACA 0012 results
+│   │   └── naca0012_optimized.html   Optimized airfoil results at 4deg
 │   ├── css/style.css           Dracula theme
 │   └── assets/images/          All images (ParaView renders + code-generated plots)
-└── output/                     Simulation artifacts only (gitignored)
+│       └── optimized/          Optimized airfoil images
+├── output/                     Simulation artifacts (gitignored)
+└── output_optimized/           Optimization simulation artifacts (gitignored)
 ```
 
 ## Adding a New Airfoil

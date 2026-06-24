@@ -17,7 +17,8 @@
 <div class="top-nav">
   <a href="index.html">Home</a>
   <a href="methodology.html">Methodology</a>
-  <a href="airfoils/naca0012.html">NACA 0012</a>
+  <a href="airfoils/naca0012.html">Airfoil Analysis</a>
+  <a href="airfoils/naca0012_optimized.html">Optimization</a>
   <a href="implementation.html">Implementation</a>
   <a href="paraview.html">ParaView</a>
 </div>
@@ -50,6 +51,7 @@
     <tr><td><code>mesher.py</code></td><td><code>MeshGenerator</code></td><td>Hybrid C-grid with structured boundary layers via Gmsh</td></tr>
     <tr><td><code>solver.py</code></td><td><code>SU2Config</code>, <code>SU2Solver</code>, <code>SU2Results</code></td><td>Config generation, solver execution, result parsing</td></tr>
     <tr><td><code>post.py</code></td><td><em>(placeholder)</em></td><td>ParaView replaces all field visualizations; convergence/aggregates in analysis.py</td></tr>
+    <tr><td><code>optimize.py</code></td><td><code>run_optimization()</code></td><td>CST-based airfoil shape optimization with NeuralFoil surrogate + 7 constraints</td></tr>
     <tr><td><code>analysis.py</code></td><td><code>plot_convergence</code>, <code>plot_cl_alpha</code>, etc.</td><td>Convergence plots, $C_l$/$C_d$ curves, drag polar with experimental overlay</td></tr>
   </table>
 
@@ -736,10 +738,19 @@ if __name__ == "__main__":
   <p>&copy; 2026 &middot; CFD Airfoil Explorer &middot; SU2 &middot; Gmsh &middot; Matplotlib &middot; Dracula Theme</p>
 </footer>
 
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-python.min.js"></script>
 <script>
 document.addEventListener("DOMContentLoaded", function () {
+  renderMathInElement(document.body, {
+    delimiters: [
+      { left: "$$", right: "$$", display: true },
+      { left: "$", right: "$", display: false }
+    ],
+    throwOnError: false
+  });
   document.querySelectorAll('.code-block details').forEach(d => {
     d.addEventListener('toggle', function() {
       if (this.open) {
