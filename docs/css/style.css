@@ -253,6 +253,36 @@ td { padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.04); }
   width: 100%; height: auto; display: block;
 }
 
+/* --- Gallery grid (5-up velocity/pressure comparison) --- */
+.gallery-section { margin: 30px 0; }
+.gallery-section h3 { margin-bottom: 8px; }
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  margin: 12px 0 24px;
+}
+.gallery-card {
+  background: var(--card-bg);
+  border: 1px solid var(--current-line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.gallery-card img { width: 100%; height: auto; display: block; }
+.gallery-label {
+  font-size: 0.7em;
+  color: var(--comment);
+  text-align: center;
+  padding: 6px 4px;
+  border-top: 1px solid var(--current-line);
+}
+@media (max-width: 900px) {
+  .gallery-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 600px) {
+  .gallery-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
 /* --- Footer --- */
 .site-footer {
   width: 100%;

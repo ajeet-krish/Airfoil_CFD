@@ -1,14 +1,14 @@
 # CFD Airfoil Explorer
 
-Automated CFD analysis of NACA 4-digit airfoils across multiple angles of attack using SU2 RANS (Spalart-Allmaras) on high-quality C-grid meshes with structured boundary layers. Generates Dracula-themed visualizations and a static multi-page portfolio website.
+Automated CFD analysis of NACA 4-digit airfoils across multiple angles of attack using SU2 RANS (Spalart-Allmaras) on high-quality C-grid meshes with structured boundary layers. Field visualizations rendered in ParaView; convergence and aggregate plots generated via matplotlib. Static multi-page Dracula-themed portfolio website.
 
 ## Features
 
 - **Modular Architecture**: Decoupled `physics/` modules — geometry, meshing, solving, post-processing
 - **C-Grid Meshing**: Hybrid structured/unstructured mesh via Gmsh (20 BL layers, Y+~1, 32K points)
 - **SU2 RANS Solver**: Compressible RANS with Spalart-Allmaras turbulence model
-- **Rich Visualizations**: Velocity contours with streamlines, pressure field, mesh topology, convergence history
-- **Experimental Validation**: Lift curve, drag polar with Ladson (1988) overlay
+- **ParaView Visualizations**: Velocity contours and pressure fields rendered interactively
+- **Code-Generated Plots**: Convergence history, Cl/Cd curves, drag polar with experimental validation
 - **Extensible**: Add new airfoils by running the same pipeline — each gets its own results page
 
 ## Results — NACA 0012
@@ -49,7 +49,7 @@ open docs/index.html
 │   ├── geometry.py      NACA 4-digit coordinates with cosine spacing
 │   ├── mesher.py        MeshGenerator — hybrid C-grid via Gmsh
 │   ├── solver.py        SU2Config + SU2Solver + SU2Results
-│   ├── post.py          Visualizer — matplotlib velocity/pressure/mesh
+│   ├── post.py          (placeholder — field vis done in ParaView)
 │   ├── analysis.py      Convergence, Cl/Cd, drag polar with validation
 │   └── validate.py      NACA 0012 experimental data (Ladson 1988)
 ├── run_tunnel.py        Main pipeline orchestrator
@@ -61,8 +61,8 @@ open docs/index.html
 │   ├── airfoils/
 │   │   └── naca0012.html       NACA 0012 results
 │   ├── css/style.css           Dracula theme
-│   └── assets/images/          Synced visualization PNGs
-└── output/                     Generated results (gitignored)
+│   └── assets/images/          All images (ParaView renders + code-generated plots)
+└── output/                     Simulation artifacts only (gitignored)
 ```
 
 ## Adding a New Airfoil
@@ -76,8 +76,6 @@ open docs/index.html
 The website lives in `docs/` and can be hosted via [GitHub Pages](https://ajeet.github.io/Airfoil_CFD). After running the pipeline:
 
 ```bash
-# Sync images (automatic in run_tunnel.py)
-# Then commit and push
 git add docs/ && git commit -m "Update results" && git push
 ```
 
