@@ -143,6 +143,17 @@ class FeaWingAnalysis:
             elif len(volumes) == 1:
                 skin_faces.append(tag)
 
+        print(f"    Faces: {len(root_faces)} root (y≈0), {len(tip_faces)} tip (y≈{self.half_span}), {len(skin_faces)} skin")
+        for t in root_faces:
+            c = gmsh.model.occ.getCenterOfMass(2, t)
+            print(f"      root face tag={t}  CoM=({c[0]:.3f}, {c[1]:.3f}, {c[2]:.3f})")
+        for t in tip_faces:
+            c = gmsh.model.occ.getCenterOfMass(2, t)
+            print(f"      tip  face tag={t}  CoM=({c[0]:.3f}, {c[1]:.3f}, {c[2]:.3f})")
+        for t in skin_faces:
+            c = gmsh.model.occ.getCenterOfMass(2, t)
+            print(f"      skin face tag={t}  CoM=({c[0]:.3f}, {c[1]:.3f}, {c[2]:.3f})")
+
         gmsh.model.addPhysicalGroup(2, root_faces, 10, name="ROOT_BC")
         gmsh.model.addPhysicalGroup(2, skin_faces, 11, name="SKIN_BC")
 

@@ -18,8 +18,8 @@ from physics.validate import get_cl_alpha, get_cd_alpha, get_drag_polar
 NACA_NAME = "NACA 0012"
 NACA_PARAMS = (0, 0, 12)  # m, p, t
 ANGLES_OF_ATTACK = [0, 4, 8, 12, 16]
-BASE_DIR = Path("./output")
-DOCS_IMG = Path("./docs/assets/images")
+BASE_DIR = Path("./output/cfd/naca0012")
+DOCS_IMG = Path("./docs/assets/images/naca0012")
 
 REGIME_LABELS = {
     0: "Symmetric Baseline",
@@ -91,10 +91,11 @@ def main():
     experimental_cd = get_cd_alpha()
     experimental_polar = get_drag_polar()
 
-    DOCS_IMG.mkdir(parents=True, exist_ok=True)
-    plot_cl_alpha(all_results, str(DOCS_IMG), experimental=experimental_cl)
-    plot_cd_alpha(all_results, str(DOCS_IMG), experimental=experimental_cd)
-    plot_drag_polar(all_results, str(DOCS_IMG), experimental=experimental_polar)
+    plots_dir = DOCS_IMG / "plots"
+    plots_dir.mkdir(parents=True, exist_ok=True)
+    plot_cl_alpha(all_results, str(plots_dir), experimental=experimental_cl)
+    plot_cd_alpha(all_results, str(plots_dir), experimental=experimental_cd)
+    plot_drag_polar(all_results, str(plots_dir), experimental=experimental_polar)
 
     print(f"\n  Done. Open docs/index.html in your browser.")
 

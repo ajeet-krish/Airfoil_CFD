@@ -5,7 +5,7 @@ description = "Modular CFD pipeline for NACA airfoil analysis"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
-    "numpy>=2.5.0",
+    "numpy>=1.22,<2.5",
     "scipy>=1.18.0",
     "gmsh>=4.13.1",
     "pyvista>=0.44.0",
@@ -15,4 +15,5 @@ dependencies = [
     "aerosandbox>=1.1.17",
     "felupe>=10.1.0",
     "meshio>=5.3.5",
+    "cadquery>=2.4.0",
 ]

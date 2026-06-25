@@ -4,9 +4,9 @@ from pathlib import Path
 
 from physics.fea import FeaWingAnalysis
 
-VTU_PATH = Path("output/cfd/optimized/flow_results_optimized.vtu")
-DAT_PATH = Path("output/cfd/optimized/optimized_airfoil.dat")
-OUTPUT_DIR = Path("output/fea/optimized")
+VTU_PATH = Path("output/cfd/naca0012/aoa_4/flow_results_4.vtu")
+DAT_PATH = Path("output/cfd/naca0012/aoa_4/airfoil.dat")
+OUTPUT_DIR = Path("output/fea/naca0012")
 
 
 def main():
@@ -18,7 +18,7 @@ def main():
     results = fea.run()
 
     print()
-    print("=== FEA Results ===")
+    print("=== FEA Results (NACA 0012 @ 4deg) ===")
     print(f"  Max tip displacement: {results['max_disp'] * 1000:.3f} mm")
     print(f"  Peak von Mises stress: {results['max_stress']:.1f} MPa")
     print(f"  Factor of Safety:     {results['factor_of_safety']:.1f}")

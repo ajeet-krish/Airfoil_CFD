@@ -9,18 +9,17 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xz/fonts@1/serve/meslo-lg.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
-  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
 <div class="top-nav">
-  <a href="../index.html">Home</a>
-  <a href="../methodology.html">Methodology</a>
-  <a href="naca0012.html">Airfoil Analysis</a>
-  <a href="naca0012_optimized.html">Optimization</a>
-  <a href="../structural.html">Structural Analysis</a>
-  <a href="../implementation.html">Implementation</a>
-  <a href="../paraview.html">ParaView</a>
+  <a href="index.html">Home</a>
+  <a href="methodology.html">Methodology</a>
+  <a href="airfoil_analysis.html">Airfoil Analysis</a>
+  <a href="optimization.html">Optimization</a>
+  <a href="structural.html">Structural Analysis</a>
+  <a href="implementation.html">Implementation</a>
 </div>
 
 <div class="container">
@@ -54,15 +53,15 @@
   <div class="aggregate-grid">
     <div class="aggregate-figure wide">
       <div class="aggregate-label">Lift Curve - $C_l$ vs Angle of Attack</div>
-      <img src="../assets/images/cl_vs_alpha.png" alt="Lift curve" loading="lazy">
+      <img src="assets/images/naca0012/plots/cl_vs_alpha.png" alt="Lift curve" loading="lazy">
     </div>
     <div class="aggregate-figure">
       <div class="aggregate-label">Drag Polar - $C_d$ vs $\alpha$</div>
-      <img src="../assets/images/cd_vs_alpha.png" alt="Drag vs alpha" loading="lazy">
+      <img src="assets/images/naca0012/plots/cd_vs_alpha.png" alt="Drag vs alpha" loading="lazy">
     </div>
     <div class="aggregate-figure">
       <div class="aggregate-label">Drag Polar - $C_l$ vs $C_d$</div>
-      <img src="../assets/images/drag_polar.png" alt="Lift vs drag" loading="lazy">
+      <img src="assets/images/naca0012/plots/drag_polar.png" alt="Lift vs drag" loading="lazy">
     </div>
   </div>
 
@@ -73,23 +72,23 @@
     <p>Velocity magnitude contours with streamlines across all 5 angles of attack, rendered in ParaView from SU2 flow solution VTU data.</p>
     <div class="gallery-grid">
       <div class="gallery-card">
-        <img src="../assets/images/aoa_0/velocity_nostream_0.png" alt="Velocity at 0 degrees" loading="lazy">
+        <img src="assets/images/naca0012/aoa_0/velocity_nostream_0.png" alt="Velocity at 0 degrees" loading="lazy">
         <div class="gallery-label">0&deg; - Symmetric Baseline</div>
       </div>
       <div class="gallery-card">
-        <img src="../assets/images/aoa_4/velocity_nostream_4.png" alt="Velocity at 4 degrees" loading="lazy">
+        <img src="assets/images/naca0012/aoa_4/velocity_nostream_4.png" alt="Velocity at 4 degrees" loading="lazy">
         <div class="gallery-label">4&deg; - Linear Lift</div>
       </div>
       <div class="gallery-card">
-        <img src="../assets/images/aoa_8/velocity_nostream_8.png" alt="Velocity at 8 degrees" loading="lazy">
+        <img src="assets/images/naca0012/aoa_8/velocity_nostream_8.png" alt="Velocity at 8 degrees" loading="lazy">
         <div class="gallery-label">8&deg; - High Lift</div>
       </div>
       <div class="gallery-card">
-        <img src="../assets/images/aoa_12/velocity_nostream_12.png" alt="Velocity at 12 degrees" loading="lazy">
+        <img src="assets/images/naca0012/aoa_12/velocity_nostream_12.png" alt="Velocity at 12 degrees" loading="lazy">
         <div class="gallery-label">12&deg; - Onset of Stall</div>
       </div>
       <div class="gallery-card">
-        <img src="../assets/images/aoa_16/velocity_nostream_16.png" alt="Velocity at 16 degrees" loading="lazy">
+        <img src="assets/images/naca0012/aoa_16/velocity_nostream_16.png" alt="Velocity at 16 degrees" loading="lazy">
         <div class="gallery-label">16&deg; - Deep Stall</div>
       </div>
     </div>
@@ -100,23 +99,23 @@
     <p>Pressure contours from the SU2 RANS solution, showing suction peak development and pressure recovery across the angle sweep.</p>
     <div class="gallery-grid">
       <div class="gallery-card">
-        <img src="../assets/images/aoa_0/pressure_0.png" alt="Pressure at 0 degrees" loading="lazy">
+        <img src="assets/images/naca0012/aoa_0/pressure_0.png" alt="Pressure at 0 degrees" loading="lazy">
         <div class="gallery-label">0&deg; - Symmetric Baseline</div>
       </div>
       <div class="gallery-card">
-        <img src="../assets/images/aoa_4/pressure_4.png" alt="Pressure at 4 degrees" loading="lazy">
+        <img src="assets/images/naca0012/aoa_4/pressure_4.png" alt="Pressure at 4 degrees" loading="lazy">
         <div class="gallery-label">4&deg; - Linear Lift</div>
       </div>
       <div class="gallery-card">
-        <img src="../assets/images/aoa_8/pressure_8.png" alt="Pressure at 8 degrees" loading="lazy">
+        <img src="assets/images/naca0012/aoa_8/pressure_8.png" alt="Pressure at 8 degrees" loading="lazy">
         <div class="gallery-label">8&deg; - High Lift</div>
       </div>
       <div class="gallery-card">
-        <img src="../assets/images/aoa_12/pressure_12.png" alt="Pressure at 12 degrees" loading="lazy">
+        <img src="assets/images/naca0012/aoa_12/pressure_12.png" alt="Pressure at 12 degrees" loading="lazy">
         <div class="gallery-label">12&deg; - Onset of Stall</div>
       </div>
       <div class="gallery-card">
-        <img src="../assets/images/aoa_16/pressure_16.png" alt="Pressure at 16 degrees" loading="lazy">
+        <img src="assets/images/naca0012/aoa_16/pressure_16.png" alt="Pressure at 16 degrees" loading="lazy">
         <div class="gallery-label">16&deg; - Deep Stall</div>
       </div>
     </div>
@@ -154,15 +153,15 @@
     <div class="vis-grid">
       <div class="vis-card">
         <div class="vis-card-label">Velocity Contours &amp; Streamlines</div>
-        <img src="../assets/images/aoa_0/velocity_0.png" alt="Velocity at 0 degrees" loading="lazy">
+        <img src="assets/images/naca0012/aoa_0/velocity_0.png" alt="Velocity at 0 degrees" loading="lazy">
       </div>
       <div class="vis-card">
         <div class="vis-card-label">Pressure Field (Pa)</div>
-        <img src="../assets/images/aoa_0/pressure_0.png" alt="Pressure at 0 degrees" loading="lazy">
+        <img src="assets/images/naca0012/aoa_0/pressure_0.png" alt="Pressure at 0 degrees" loading="lazy">
       </div>
       <div class="vis-card">
         <div class="vis-card-label">Convergence History - RMS Residuals &amp; Force Coefficients</div>
-        <img src="../assets/images/aoa_0/convergence_0.png" alt="Convergence at 0 degrees" loading="lazy">
+        <img src="assets/images/naca0012/aoa_0/convergence_0.png" alt="Convergence at 0 degrees" loading="lazy">
       </div>
     </div>
   </div>
@@ -186,15 +185,15 @@
     <div class="vis-grid">
       <div class="vis-card">
         <div class="vis-card-label">Velocity Contours &amp; Streamlines</div>
-        <img src="../assets/images/aoa_4/velocity_4.png" alt="Velocity at 4 degrees" loading="lazy">
+        <img src="assets/images/naca0012/aoa_4/velocity_4.png" alt="Velocity at 4 degrees" loading="lazy">
       </div>
       <div class="vis-card">
         <div class="vis-card-label">Pressure Field (Pa)</div>
-        <img src="../assets/images/aoa_4/pressure_4.png" alt="Pressure at 4 degrees" loading="lazy">
+        <img src="assets/images/naca0012/aoa_4/pressure_4.png" alt="Pressure at 4 degrees" loading="lazy">
       </div>
       <div class="vis-card">
         <div class="vis-card-label">Convergence History</div>
-        <img src="../assets/images/aoa_4/convergence_4.png" alt="Convergence at 4 degrees" loading="lazy">
+        <img src="assets/images/naca0012/aoa_4/convergence_4.png" alt="Convergence at 4 degrees" loading="lazy">
       </div>
     </div>
   </div>
@@ -218,15 +217,15 @@
     <div class="vis-grid">
       <div class="vis-card">
         <div class="vis-card-label">Velocity Contours &amp; Streamlines</div>
-        <img src="../assets/images/aoa_8/velocity_8.png" alt="Velocity at 8 degrees" loading="lazy">
+        <img src="assets/images/naca0012/aoa_8/velocity_8.png" alt="Velocity at 8 degrees" loading="lazy">
       </div>
       <div class="vis-card">
         <div class="vis-card-label">Pressure Field (Pa)</div>
-        <img src="../assets/images/aoa_8/pressure_8.png" alt="Pressure at 8 degrees" loading="lazy">
+        <img src="assets/images/naca0012/aoa_8/pressure_8.png" alt="Pressure at 8 degrees" loading="lazy">
       </div>
       <div class="vis-card">
         <div class="vis-card-label">Convergence History</div>
-        <img src="../assets/images/aoa_8/convergence_8.png" alt="Convergence at 8 degrees" loading="lazy">
+        <img src="assets/images/naca0012/aoa_8/convergence_8.png" alt="Convergence at 8 degrees" loading="lazy">
       </div>
     </div>
   </div>
@@ -250,15 +249,15 @@
     <div class="vis-grid">
       <div class="vis-card">
         <div class="vis-card-label">Velocity Contours &amp; Streamlines</div>
-        <img src="../assets/images/aoa_12/velocity_12.png" alt="Velocity at 12 degrees" loading="lazy">
+        <img src="assets/images/naca0012/aoa_12/velocity_12.png" alt="Velocity at 12 degrees" loading="lazy">
       </div>
       <div class="vis-card">
         <div class="vis-card-label">Pressure Field (Pa)</div>
-        <img src="../assets/images/aoa_12/pressure_12.png" alt="Pressure at 12 degrees" loading="lazy">
+        <img src="assets/images/naca0012/aoa_12/pressure_12.png" alt="Pressure at 12 degrees" loading="lazy">
       </div>
       <div class="vis-card">
         <div class="vis-card-label">Convergence History</div>
-        <img src="../assets/images/aoa_12/convergence_12.png" alt="Convergence at 12 degrees" loading="lazy">
+        <img src="assets/images/naca0012/aoa_12/convergence_12.png" alt="Convergence at 12 degrees" loading="lazy">
       </div>
     </div>
   </div>
@@ -282,15 +281,15 @@
     <div class="vis-grid">
       <div class="vis-card">
         <div class="vis-card-label">Velocity Contours &amp; Streamlines</div>
-        <img src="../assets/images/aoa_16/velocity_16.png" alt="Velocity at 16 degrees" loading="lazy">
+        <img src="assets/images/naca0012/aoa_16/velocity_16.png" alt="Velocity at 16 degrees" loading="lazy">
       </div>
       <div class="vis-card">
         <div class="vis-card-label">Pressure Field (Pa)</div>
-        <img src="../assets/images/aoa_16/pressure_16.png" alt="Pressure at 16 degrees" loading="lazy">
+        <img src="assets/images/naca0012/aoa_16/pressure_16.png" alt="Pressure at 16 degrees" loading="lazy">
       </div>
       <div class="vis-card">
         <div class="vis-card-label">Convergence History</div>
-        <img src="../assets/images/aoa_16/convergence_16.png" alt="Convergence at 16 degrees" loading="lazy">
+        <img src="assets/images/naca0012/aoa_16/convergence_16.png" alt="Convergence at 16 degrees" loading="lazy">
       </div>
     </div>
   </div>

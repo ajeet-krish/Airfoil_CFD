@@ -17,11 +17,10 @@
 <div class="top-nav">
   <a href="index.html">Home</a>
   <a href="methodology.html">Methodology</a>
-  <a href="airfoils/naca0012.html">Airfoil Analysis</a>
-  <a href="airfoils/naca0012_optimized.html">Optimization</a>
+  <a href="airfoil_analysis.html">Airfoil Analysis</a>
+  <a href="optimization.html">Optimization</a>
   <a href="structural.html">Structural Analysis</a>
   <a href="implementation.html">Implementation</a>
-  <a href="paraview.html">ParaView</a>
 </div>
 
 <div class="container">
@@ -39,7 +38,7 @@
     <div class="callout-tag">How to Run</div>
     <p style="margin-bottom:6px">From the project root, run:</p>
     <pre><code>uv run python run_tunnel.py</code></pre>
-    <p style="margin-bottom:0;margin-top:6px">This generates geometry, meshes, solves, and post-processes all 5 angles of attack. Expect ~30 minutes total on an M-series Mac. Output appears in <code>output/</code> and syncs to <code>docs/assets/images/</code>.</p>
+    <p style="margin-bottom:0;margin-top:6px">This generates geometry, meshes, solves, and post-processes all 5 angles of attack. Expect ~30 minutes total on an M-series Mac. Output appears in <code>output/cfd/naca0012/</code> and plots go to <code>docs/assets/images/naca0012/</code>.</p>
   </div>
 
   <h2>Code Architecture</h2>
@@ -56,7 +55,7 @@
     <tr><td><code>analysis.py</code></td><td><code>plot_convergence</code>, <code>plot_cl_alpha</code>, etc.</td><td>Convergence plots, $C_l$/$C_d$ curves, drag polar with experimental overlay</td></tr>
   </table>
 
-  <p>The orchestrator <code>run_tunnel.py</code> iterates through angles of attack, coordinates the pipeline stages, aggregates results, and writes plots directly to <code>docs/assets/images/</code>.</p>
+  <p>The orchestrator <code>run_tunnel.py</code> iterates through angles of attack, coordinates the pipeline stages, aggregates results, and writes plots directly to <code>docs/assets/images/naca0012/</code>.</p>
 
   <h2>SU2 Configuration Reference</h2>
 
@@ -658,8 +657,8 @@ from physics.validate import get_cl_alpha, get_cd_alpha, get_drag_polar
 NACA_NAME = "NACA 0012"
 NACA_PARAMS = (0, 0, 12)
 ANGLES_OF_ATTACK = [0, 4, 8, 12, 16]
-BASE_DIR = Path("./output")
-DOCS_IMG = Path("./docs/assets/images")
+BASE_DIR = Path("./output/cfd/naca0012")
+DOCS_IMG = Path("./docs/assets/images/naca0012")
 
 REGIME_LABELS = {
     0: "Symmetric Baseline",

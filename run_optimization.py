@@ -16,7 +16,7 @@ from physics.solver import SU2Config, SU2Solver
 AOI = 4
 RE = 1e6
 MACH = 0.15
-BASE_DIR = Path("./output_optimized")
+BASE_DIR = Path("./output/cfd/optimized")
 DOCS_IMG = Path("./docs/assets/images/optimized")
 
 
@@ -99,7 +99,7 @@ def main():
     print(f"  Open in ParaView to render velocity and pressure contours.")
 
     print(f"\n  To add a new airfoil results page:")
-    print(f"    cp docs/airfoils/naca0012_optimized.html docs/airfoils/your_airfoil.html")
+    print(f"    cp docs/optimization.html docs/your_airfoil.html")
     print(f"    # Update parameters and image paths")
 
 

@@ -10,19 +10,18 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xz/fonts@1/serve/meslo-lg.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
-  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="css/style.css">
 </head>
 
 <body>
 
   <div class="top-nav">
-    <a href="../index.html">Home</a>
-    <a href="../methodology.html">Methodology</a>
-    <a href="naca0012.html">Airfoil Analysis</a>
-    <a href="naca0012_optimized.html">Optimization</a>
-    <a href="../structural.html">Structural Analysis</a>
-    <a href="../implementation.html">Implementation</a>
-    <a href="../paraview.html">ParaView</a>
+    <a href="index.html">Home</a>
+    <a href="methodology.html">Methodology</a>
+    <a href="airfoil_analysis.html">Airfoil Analysis</a>
+    <a href="optimization.html">Optimization</a>
+    <a href="structural.html">Structural Analysis</a>
+    <a href="implementation.html">Implementation</a>
   </div>
 
   <div class="container">
@@ -42,7 +41,7 @@
 
     <div class="figure">
       <div class="aggregate-label">Shape Overlay - NACA 0012 (cyan, dashed) vs Optimized (pink, solid)</div>
-      <img src="../assets/images/optimized/airfoil_shape_overlay.png" alt="NACA 0012 vs Optimized shape overlay"
+      <img src="assets/images/optimized/airfoil_shape_overlay.png" alt="NACA 0012 vs Optimized shape overlay"
         loading="lazy">
     </div>
 
@@ -234,11 +233,11 @@
     <div class="compare-grid">
       <div class="compare-figure">
         <div class="compare-label">NACA 0012 - Baseline ($C_l$=0.4453, $C_d$=0.0969)</div>
-        <img src="../assets/images/aoa_4/velocity_4.png" alt="Baseline velocity at 4 degrees" loading="lazy">
+        <img src="assets/images/naca0012/aoa_4/velocity_4.png" alt="Baseline velocity at 4 degrees" loading="lazy">
       </div>
       <div class="compare-figure">
         <div class="compare-label">Optimized at 4&deg; ($C_l$=0.3686, $C_d$=0.0791)</div>
-        <img src="../assets/images/optimized/velocity_optimized.png" alt="Optimized velocity at 4 degrees"
+        <img src="assets/images/optimized/velocity_optimized.png" alt="Optimized velocity at 4 degrees"
           loading="lazy">
       </div>
     </div>
@@ -255,11 +254,11 @@
     <div class="compare-grid">
       <div class="compare-figure">
         <div class="compare-label">NACA 0012 - Baseline ($C_l$=0.4453, $C_d$=0.0969)</div>
-        <img src="../assets/images/aoa_4/pressure_4.png" alt="Baseline pressure at 4 degrees" loading="lazy">
+        <img src="assets/images/naca0012/aoa_4/pressure_4.png" alt="Baseline pressure at 4 degrees" loading="lazy">
       </div>
       <div class="compare-figure">
         <div class="compare-label">Optimized at 4&deg; ($C_l$=0.3686, $C_d$=0.0791)</div>
-        <img src="../assets/images/optimized/pressure_optimized.png" alt="Optimized pressure at 4 degrees"
+        <img src="assets/images/optimized/pressure_optimized.png" alt="Optimized pressure at 4 degrees"
           loading="lazy">
       </div>
     </div>
@@ -268,7 +267,7 @@
 
     <div class="figure">
       <div class="aggregate-label">RMS Residuals and Force Coefficients - Optimized Shape SU2 RANS at 4&deg;</div>
-      <img src="../assets/images/optimized/convergence_4.png" alt="Optimized SU2 convergence history" loading="lazy">
+      <img src="assets/images/optimized/convergence_4.png" alt="Optimized SU2 convergence history" loading="lazy">
     </div>
 
     <h2>Why the Optimizer Chose This Shape</h2>
