@@ -43,11 +43,14 @@ def main():
         output_dir.mkdir(parents=True, exist_ok=True)
 
         mesh_path = output_dir / "mesh_3d.su2"
+        # Determine STEP file based on config
+        step_path = Path("output/cad") / (cfg["docs_prefix"] + "_wing.step")
+        
         if not mesh_path.exists():
-            print("  [1/3] Generating 3D volume mesh...")
-            mesher = MeshGenerator3D(mesh_density=1.0, span_layers=30)
+            print("  [1/3] Generating 3D volume mesh (Gmsh OCC)...")
+            mesher = MeshGenerator3D(mesh_density=1.0)
             mesher.generate(
-                dat_file=str(dat_path),
+                step_file=str(step_path),
                 output_su2=str(mesh_path),
             )
         else:
@@ -62,14 +65,8 @@ def main():
             solver.run(config, mesh_path, output_dir, timeout=3600)
 
             if not surf_vtu_path.exists():
-                print("  WARNING: surface_3d_4.vtu not generated. SU2 may not have converged.")
-                fallback = list(output_dir.glob("surface_*.vtu"))
-                if fallback:
-                    surf_vtu_path = fallback[0]
-                    print(f"  Using fallback: {surf_vtu_path}")
-                else:
-                    print("  SKIP: No surface VTU available for FEA.")
-                    continue
+                print("  WARNING: surface_3d_4.vtu not generated. Using volume flow file as fallback.")
+                surf_vtu_path = flow_vtu_path
         else:
             print("  [2/3] SU2 results already exist, skipping...")
 

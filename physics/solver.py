@@ -115,7 +115,7 @@ class SU2Config3D:
     reynolds_number: float = 1_000_000
     reynolds_length: float = 1.0
     iterations: int = 3000
-    cfl_number: float = 0.5
+    cfl_number: float = 0.1  # Reduced from 0.5
     cfl_adapt: bool = True
     turbulence_model: str = "SA"
     muscl_flow: str = "NO"
@@ -146,8 +146,8 @@ class SU2Config3D:
             "",
             "% --- BOUNDARY CONDITIONS ---",
             "MARKER_FAR= ( farfield )",
-            "MARKER_HEATFLUX= ( wing, 0.0 )",
-            "MARKER_MONITORING= ( wing )",
+            "MARKER_HEATFLUX= ( airfoil, 0.0 )",
+            "MARKER_MONITORING= ( airfoil )",
             "",
             "% --- NUMERICAL METHODS ---",
             "NUM_METHOD_GRAD= GREEN_GAUSS",
