@@ -62,10 +62,17 @@ def _downsample(coords: np.ndarray, target: int) -> np.ndarray:
 
 
 class FeaWingAnalysis:
-    def __init__(self, vtu_path: str, dat_path: str, output_dir: str):
-        self.vtu_path = Path(vtu_path)
+    def __init__(
+        self,
+        vtu_path: str,
+        dat_path: str,
+        output_dir: str,
+        surface_vtu_3d_path: str | None = None,
+    ):
+        self.vtu_path = Path(vtu_path) if vtu_path else None
         self.dat_path = Path(dat_path)
         self.output_dir = Path(output_dir)
+        self.surface_vtu_3d_path = Path(surface_vtu_3d_path) if surface_vtu_3d_path else None
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.fea_dir = self.output_dir / "fea"
         self.fea_dir.mkdir(parents=True, exist_ok=True)
@@ -95,6 +102,12 @@ class FeaWingAnalysis:
         _, indices = tree.query(coords)
         p_surf = grid["Pressure"][indices]
         return coords, p_surf - self.p_inf
+
+    def extract_surface_pressure_3d(self) -> tuple[np.ndarray, np.ndarray]:
+        grid = pv.read(str(self.surface_vtu_3d_path))
+        points = grid.points
+        pressure = np.asarray(grid["Pressure"]).ravel() - self.p_inf
+        return points, pressure
 
     def _make_airfoil_wire(self, coords, y, chord, sweep, dihedral, twist):
         tr = np.radians(twist)
@@ -409,8 +422,9 @@ class FeaWingAnalysis:
         plotter.set_background(BG_COLOR)
         plotter.link_views()
 
-        out_stress = str(self.output_dir.parent / "docs" / "assets" / "images" / "optimized" / "fea_stress.png")
-        out_disp = str(self.output_dir.parent / "docs" / "assets" / "images" / "optimized" / "fea_displacement.png")
+        docs_img = Path("docs") / "assets" / "images" / "optimized"
+        out_stress = str(docs_img / "fea_stress.png")
+        out_disp = str(docs_img / "fea_displacement.png")
 
         plotter.screenshot(out_stress, scale=2)
         print(f"  Saved: {out_stress}")
@@ -475,4 +489,100 @@ class FeaWingAnalysis:
         }
 
         print("  FEA pipeline complete.")
+        return results
+
+    def _compute_skin_forces_3d(
+        self, mesh_io, pressure_pts_3d: np.ndarray, pressure_vals_3d: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        points = mesh_io.points
+        tree_3d = KDTree(pressure_pts_3d)
+
+        skin_block = None
+        for i, cb in enumerate(mesh_io.cells):
+            if cb.type == "triangle":
+                phys = mesh_io.cell_data["gmsh:physical"][i]
+                if 11 in phys:
+                    skin_block = i
+                    break
+
+        if skin_block is None:
+            raise RuntimeError("No skin triangles (physical=11) found in mesh")
+
+        skin_tris = mesh_io.cells[skin_block].data
+        skin_phys = mesh_io.cell_data["gmsh:physical"][skin_block]
+        skin_mask = skin_phys == 11
+        skin_tris = skin_tris[skin_mask]
+
+        skin_node_ids = np.unique(skin_tris.flatten())
+        forces = np.zeros((len(points), 3))
+
+        for tri in skin_tris:
+            p0, p1, p2 = points[tri[0]], points[tri[1]], points[tri[2]]
+            v1 = p1 - p0
+            v2 = p2 - p0
+            cross = np.cross(v1, v2)
+            area = 0.5 * np.linalg.norm(cross)
+            normal = cross / (2.0 * area)
+
+            centroid = (p0 + p1 + p2) / 3.0
+            _, idx = tree_3d.query(centroid)
+            dp = float(pressure_vals_3d[idx])
+
+            f_node = (dp * area / 3.0) * normal
+            for node_id in tri:
+                forces[node_id] += f_node
+
+        return skin_node_ids, forces[skin_node_ids]
+
+    def run_with_3d(self):
+        print("  [1/6] Extracting 3D CFD surface pressure...")
+        pressure_pts, pressure_vals = self.extract_surface_pressure_3d()
+        print(f"    Points: {len(pressure_pts)}, range: [{pressure_vals.min():.1f}, {pressure_vals.max():.1f}] Pa")
+
+        print("  [2/6] Building 3D wing geometry (Gmsh OCC)...")
+        mesh_path = self.generate_wing_geometry()
+
+        print("  [3/6] Computing aerodynamic loads from 3D pressure...")
+        mesh_io = meshio.read(str(mesh_path))
+        points = mesh_io.points
+        tetra_cells = np.array([cb.data for cb in mesh_io.cells if cb.type == "tetra"][0])
+
+        mesh = felupe.Mesh(points=points, cells=tetra_cells)
+        region = felupe.RegionTetra(mesh)
+        field = felupe.FieldContainer([felupe.Field(region, dim=3)])
+
+        skin_node_ids, loaded_forces = self._compute_skin_forces_3d(mesh_io, pressure_pts, pressure_vals)
+
+        umat = felupe.LinearElastic(E=self.E, nu=self.nu)
+        solid = felupe.SolidBody(umat, field)
+        load = felupe.PointLoad(field, skin_node_ids.tolist(), values=loaded_forces)
+
+        bounds = {
+            "fixed": felupe.dof.Boundary(
+                field[0],
+                fy=lambda y: np.isclose(y, 0.0, atol=0.05),
+            )
+        }
+        step = felupe.Step(items=[solid, load], boundaries=bounds)
+        job = felupe.Job(steps=[step])
+        job.evaluate()
+
+        print("  [4/6] Computing stress and safety factor...")
+        von_mises, max_disp, max_stress, fs = self._compute_stress(solid, field, mesh_io)
+
+        print("  [5/6] Exporting VTU for ParaView...")
+        vtu_path = self._export_vtu(mesh_io, field, von_mises, skin_node_ids)
+
+        print("  [6/6] Generating 3D contour plots...")
+        self.visualize_3d(vtu_path)
+
+        results = {
+            "max_disp": max_disp,
+            "max_stress": max_stress,
+            "factor_of_safety": fs,
+            "von_mises": von_mises,
+            "vtu_path": str(vtu_path),
+        }
+
+        print("  3D FEA pipeline complete.")
         return results

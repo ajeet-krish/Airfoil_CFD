@@ -5,7 +5,9 @@ Automated CFD analysis of NACA 4-digit airfoils across multiple angles of attack
 Generates C-grid meshes (Gmsh), solves RANS equations (SU2, Spalart-Allmaras),
 and outputs a static Dracula-themed portfolio website with ParaView field
 visualizations and matplotlib convergence/aggregate plots with experimental
-validation.
+validation. Includes airfoil shape optimization (CST + NeuralFoil + SLSQP),
+structural FEA (FElupe), 3D wing CFD pipeline (2.5D extrusion), and
+CadQuery wing CAD (STEP export with spar/ribs).
 
 ## Style Rules
 - **No em dashes** anywhere in the website. Use a regular hyphen `-` instead of `--`, `&mdash;`, `&ndash;`, or the literal Unicode em dash `—`.
@@ -34,6 +36,11 @@ Always reference Soccer CFD when stuck on architecture or visualization question
   - Compressible RANS, SA turbulence, ROE scheme, MUSCL_FLOW=NO (1st order stable)
   - CFL_ADAPT ramps from 0.01 to 5.0 over 2000 iterations
   - `HISTORY_OUTPUT= (INNER_ITER, RMS_RES, AERO_COEFF)` captures CL/CD in CSV
+- `mesher3d.py` - `MeshGenerator3D` class. 2.5D extrusion of 2D C-grid to 3D:
+  - Parses 2D SU2 mesh, extrudes nodes/elements along span with sweep/dihedral/twist per layer
+  - Prism/wedge elements in farfield, hexahedral elements in BL region (preserves BL topology)
+  - 990K nodes, 1.9M elements, ~3.9s generation time at span_layers=30, mesh_density=1.0
+  - Does NOT use Gmsh 3D BoundaryLayer (unsupported in 4.15.2) — carries 2D BL into 3D via extrusion
 - `post.py` - (placeholder) Field visualizations (velocity, pressure, mesh) created in ParaView
 - `analysis.py` - Convergence plots, Cl/Cd curves, drag polar with experimental overlay
 - `validate.py` - NACA 0012 experimental data (Ladson 1988, Abbott 1949)
@@ -57,12 +64,20 @@ Always reference Soccer CFD when stuck on architecture or visualization question
   - VTU export with displacement, von_mises, on_skin fields for ParaView
   - PyVista off-screen 3D contour renders (stress + displacement side-by-side)
 
+- `cad_wing.py` - CadQuery parametric wing CAD:
+  - Wing lofted from airfoil sections with sweep=25deg, dihedral=3deg, twist=-2deg
+  - Internal structural layout: I-beam spar at 25% chord, 5 ribs
+  - STEP export for manufacturing/CAD downstream
+  - Called by `run_cad.py` for both NACA 0012 and optimized wing
+
 ### Workflow
 For standard multi-angle analysis: `run_tunnel.py` orchestrates geometry -> C-grid mesh -> SU2 solver -> convergence plots -> aggregate plots.
 For single-airfoil optimization: `run_optimization.py` runs CST optimization (NeuralFoil) -> meshes optimized shape -> runs SU2 RANS -> generates comparison.
-For structural analysis: `run_fea.py` runs extract_pressure -> generate_wing_geometry -> solve (with loads) -> stress computation -> VTU export -> 3D plots.
+For structural analysis (2D pressure): `run_fea.py` runs extract_pressure -> generate_wing_geometry -> solve (with loads) -> stress computation -> VTU export -> 3D plots.
+For 3D wing pipeline: `run_3d_pipeline.py` runs 2.5D extrusion mesh -> SU2 3D RANS -> FEA with 3D surface pressure (for both NACA 0012 and optimized wing).
+For wing CAD: `run_cad.py` generates CadQuery STEP files with spar/ribs.
 All images go directly to `docs/assets/images/naca0012/` (per-AoA in `aoa_*` subdirs, plots in `plots/`, mesh in `mesh_naca0012/`).
-`output/cfd/naca0012/` contains CFD simulation artifacts, `output/cad/` for STEP files, `output/fea/` for FEA results.
+`output/cfd/naca0012/` contains 2D CFD artifacts, `output/cfd/naca0012_3d/` and `output/cfd/optimized_3d/` contain 3D pipeline artifacts, `output/cad/` for STEP files, `output/fea/` for FEA results.
 
 5 AoAs: [0, 4, 8, 12, 16] with regime labels
 (Symmetric Baseline, Linear Lift, High Lift, Onset of Stall, Deep Stall)
@@ -71,7 +86,10 @@ All images go directly to `docs/assets/images/naca0012/` (per-AoA in `aoa_*` sub
 ```bash
 uv run python run_tunnel.py         # Standard multi-angle analysis (~30 min)
 uv run python run_optimization.py   # Single-airfoil CST optimization (~2 sec + SU2 ~10 min)
-uv run python run_fea.py            # Structural analysis (~6 sec)
+uv run python run_fea.py            # Structural FEA for optimized wing (~6 sec)
+uv run python run_fea_naca0012.py   # Structural FEA for NACA 0012 wing
+uv run python run_3d_pipeline.py    # 3D mesh -> SU2 3D CFD -> 3D pressure FEA (~25 min)
+uv run python run_cad.py            # CadQuery wing CAD STEP export
 ```
 
 ---
@@ -98,6 +116,18 @@ uv run python run_fea.py            # Structural analysis (~6 sec)
 ---
 
 ## Critical Knowledge - Mesh Generation
+
+### 2.5D Extrusion (mesher3d.py)
+- Extrudes 2D C-grid SU2 mesh into 3D volume (no Gmsh 3D geometry)
+- Parses NPOIN, NELEM, NMARK sections from 2D SU2 mesh
+- Extrudes each 2D node along span by layer: applies sweep (dx), dihedral (dz), twist (rotation)
+- Layer positions: linear spanwise from root (y=0) to tip (y=half_span)
+- BL quads become hexahedra (2 layers of 4 nodes -> 2 layers of 8 nodes per element)
+- Farfield triangles become wedges/prisms (2 layers of 3 nodes -> 6 nodes per element)
+- Physical markers: "airfoil" -> MARKER_WALL, "farfield" -> MARKER_FAR, plus new "symmetry" at root/tip
+- Default: span=11.0, half_span=5.5, span_layers=30, sweep=25deg, dihedral=3deg, twist=-2deg
+- Performance: 990K nodes, 1.9M elements, ~3.9s, ~157MB .su2 file
+- Mesh type: quad-dominant in BL (hexahedral), triangle-dominant in farfield (wedge/prism)
 
 ### C-grid Implementation
 - C-shaped farfield: semicircle centered at (0, 0) radius 15, walls to x=30, outlet at x=30
@@ -223,7 +253,7 @@ Lift curve slope: 0.109 per degree (matches theoretical 2pi within 1%)
 
 ## FEA Results (2026-06-25)
 
-### Optimized Wing at 4deg (FElupe linear elastic)
+### Optimized Wing at 4deg (2D pressure -> 3D FEA, FElupe linear elastic)
 | Metric | Value |
 |--------|------:|
 | Max Tip Displacement | 521.6 mm |
@@ -232,9 +262,19 @@ Lift curve slope: 0.109 per degree (matches theoretical 2pi within 1%)
 | Material | Al 7075-T6 (E=71.7 GPa, nu=0.33, sigma_yield=503 MPa) |
 | Wing Mesh | 1,241 nodes, 3,417 tetrahedra |
 
+### NACA 0012 Wing at 4deg (2D pressure -> 3D FEA)
+| Metric | Value |
+|--------|------:|
+| Max Tip Displacement | 474.1 mm |
+| Peak von Mises Stress | 1985 MPa |
+| Factor of Safety | 0.25 |
+| Material | Al 7075-T6 |
+| Wing Mesh | 1,241 nodes, 3,417 tetrahedra |
+
 ### Notes
 - FS < 1.0 expected: solid wing with no internal spars/ribs
-- Pressure mapped from 2D SU2 RANS solution to 3D skin facets
+- Pressure mapped from 2D SU2 RANS solution to 3D skin facets (FeaWingAnalysis.run())
+- 3D pressure uses KDTree 3D-to-3D interpolation via FeaWingAnalysis.run_with_3d()
 - VTU exported to `output/fea/optimized/results.vtu` for ParaView
 - 3D contour plots generated by PyVista off-screen
 
@@ -246,6 +286,9 @@ uv sync                           # Install/update dependencies
 uv run python run_tunnel.py       # Full pipeline (~30 min)
 uv run python run_optimization.py # Single-airfoil optimization (~2 sec + SU2 ~10 min)
 uv run python run_fea.py          # Structural analysis (~6 sec)
+uv run python run_fea_naca0012.py # NACA 0012 structural FEA (~6 sec)
+uv run python run_3d_pipeline.py  # 3D mesh -> SU2 3D CFD -> 3D pressure FEA (~25 min)
+uv run python run_cad.py          # CadQuery wing STEP export
 # No build step - static HTML hand-authored; edit files directly in docs/
 open docs/index.html              # View portfolio site
 ```
@@ -276,6 +319,19 @@ open docs/index.html              # View portfolio site
     Root-level HTML pages: `airfoil_analysis.html`, `optimization.html`. Deleted `docs/airfoils/`
     and `docs/paraview.html`. Added `physics/cad_wing.py` + `run_cad.py` for CadQuery wing CAD
     with internal spar and ribs.
+12. **2.5D extrusion mesher**: `physics/mesher3d.py` — parses 2D SU2 mesh, extrudes nodes/elements
+    along span with sweep/dihedral/twist per layer. Prism/wedge farfield, hexahedral BL. No Gmsh 3D
+    dependency. 990K nodes, 1.9M elements, ~3.9s.
+13. **3D SU2 config**: `SU2Config3D` dataclass in `solver.py` — 3D RANS with SA, ROE, MUSCL=NO,
+    multigrid=0, conservative CFL ramp, MARKER_FAR/MARKER_HEATFLUX boundary conditions.
+14. **3D FEA pressure mapping**: `fea.py.run_with_3d()` — maps 3D surface VTU pressure to 3D wing
+    skin via KDTree nearest-neighbor interpolation (3D-to-3D, not 2D-to-3D).
+15. **3D pipeline orchestrator**: `run_3d_pipeline.py` — iterates NACA 0012 and optimized wing
+    configs: mesh -> SU2 3D CFD -> FEA with 3D pressure, skips completed steps via file checks.
+16. **NACA 0012 FEA runner**: `run_fea_naca0012.py` — separate entrypoint for NACA 0012 structural
+    FEA alongside optimized wing.
+17. **Knowledge graph**: `graphify-out/` codebase graph — 141 nodes, 282 edges, 13 communities.
+    Accessible via `graph-out/graph.html` and `GRAPH_REPORT.md`.
 
 ## Color Scheme (Dracula)
 - Background: `#282a36`
