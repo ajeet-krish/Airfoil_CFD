@@ -34,10 +34,12 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "aerosandbox" },
+    { name = "felupe" },
     { name = "gmsh" },
     { name = "imageio" },
     { name = "jinja2" },
     { name = "matplotlib" },
+    { name = "meshio" },
     { name = "numpy" },
     { name = "pyvista" },
     { name = "scipy" },
@@ -46,10 +48,12 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "aerosandbox", specifier = ">=1.1.17" },
+    { name = "felupe", specifier = ">=10.1.0" },
     { name = "gmsh", specifier = ">=4.13.1" },
     { name = "imageio", specifier = ">=2.35.0" },
     { name = "jinja2", specifier = ">=3.1.5" },
     { name = "matplotlib", specifier = ">=3.9.0" },
+    { name = "meshio", specifier = ">=5.3.5" },
     { name = "numpy", specifier = ">=2.5.0" },
     { name = "pyvista", specifier = ">=0.44.0" },
     { name = "scipy", specifier = ">=1.18.0" },
@@ -212,6 +216,19 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/e0/4d/f332313098c1de1b2d2ff91cf2674415cc7cddab2ca1b01ae29774bd5fdf/docstring_parser-0.18.0.tar.gz", hash = "sha256:292510982205c12b1248696f44959db3cdd1740237a968ea1e2e7a900eeb2015", size = 29341, upload-time = "2026-04-14T04:09:19.867Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a7/5f/ed01f9a3cdffbd5a008556fc7b2a08ddb1cc6ace7effa7340604b1d16699/docstring_parser-0.18.0-py3-none-any.whl", hash = "sha256:b3fcbed555c47d8479be0796ef7e19c2670d428d72e96da63f3a40122860374b", size = 22484, upload-time = "2026-04-14T04:09:18.638Z" },
+]
+
+[[package]]
+name = "felupe"
+version = "10.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "scipy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a0/ad/a0e78479dd5652b18832e8557a06fedf373a0a0c72bbb2e9614e63199418/felupe-10.1.0.tar.gz", hash = "sha256:cf179e45a960ca9e79f18551a4745c37496733abed586df5d8c433bc97f4571c", size = 262217, upload-time = "2026-02-26T17:43:05.706Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f4/59/30c0464719818c8f200fd7c2c48d3bca0c6013067474cf6c0270750261b9/felupe-10.1.0-py3-none-any.whl", hash = "sha256:96fef93d29ccaf7a83f4a2b9f84cf33c89435e3a58a2ccdec00c4bd8bd649e38", size = 379200, upload-time = "2026-02-26T17:43:04.464Z" },
 ]
 
 [[package]]
@@ -404,6 +421,19 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d6/54/cfe61301667036ec958cb99bd3efefba235e65cdeb9c84d24a8293ba1d90/mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba", size = 8729, upload-time = "2022-08-14T12:40:10.846Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b3/38/89ba8ad64ae25be8de66a6d463314cf1eb366222074cfda9ee839c56a4b4/mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8", size = 9979, upload-time = "2022-08-14T12:40:09.779Z" },
+]
+
+[[package]]
+name = "meshio"
+version = "5.3.5"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "rich" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/20/1e/caa4f15c020de3e3486b4133ca689236bd3863a3d6dd0f58e97ce86a296a/meshio-5.3.5.tar.gz", hash = "sha256:f21f01abd9f29ba06ea119304b3d39e610421cfe93b9dd23362834919f87586d", size = 490922, upload-time = "2024-01-31T15:09:41.731Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/89/5f/39cbadc320cd78f4834b0a9f7a2fa3c980dca942bf193f315837eacb8870/meshio-5.3.5-py3-none-any.whl", hash = "sha256:0736c6e34ecc768f62f2cde5d8233a3529512a9399b25c68ea2ca0d5900cdc10", size = 166162, upload-time = "2024-01-31T15:09:36.691Z" },
 ]
 
 [[package]]

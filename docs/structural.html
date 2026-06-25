@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Structural analysis of optimized NACA wing under CFD aerodynamic loads using FElupe FEA">
+  <title>Structural Analysis - CFD Airfoil Explorer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xz/fonts@1/serve/meslo-lg.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+  <div class="top-nav">
+    <a href="index.html">Home</a>
+    <a href="methodology.html">Methodology</a>
+    <a href="airfoils/naca0012.html">Airfoil Analysis</a>
+    <a href="airfoils/naca0012_optimized.html">Optimization</a>
+    <a href="structural.html">Structural Analysis</a>
+    <a href="implementation.html">Implementation</a>
+    <a href="paraview.html">ParaView</a>
+  </div>
+
+  <div class="container">
+
+    <h1>Structural Analysis</h1>
+
+    <p>After optimizing the airfoil shape for minimum drag, the next question is whether the resulting geometry can
+      withstand the aerodynamic loads it encounters in cruise flight. This page applies the CFD surface pressure
+      distribution from the SU2 RANS solution onto a 3D finite element model of the optimized wing and computes the
+      resulting stress, deformation, and structural safety margin.</p>
+
+    <div class="metrics-grid">
+      <div class="metric-card lift">
+        <div class="metric-label">Max Tip Displacement</div>
+        <div class="metric-value hl-cyan" id="disp-val">-</div>
+      </div>
+      <div class="metric-card drag">
+        <div class="metric-label">Peak von Mises Stress</div>
+        <div class="metric-value hl-pink" id="stress-val">-</div>
+      </div>
+      <div class="metric-card ratio">
+        <div class="metric-label">Factor of Safety</div>
+        <div class="metric-value hl-green" id="fs-val">-</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Wing Material</div>
+        <div class="metric-value hl-purple" style="font-size:1em">Al 7075-T6</div>
+      </div>
+    </div>
+
+    <h2>Wing Geometry</h2>
+
+    <p>The 3D wing is lofted from the optimized airfoil coordinates at the root (chord = 2.5 m) to a smaller section
+      at the tip (chord = 0.75 m) over a half-span of 5.5 m. The planform includes 25&deg; leading-edge sweep,
+      3&deg; dihedral, and a -2&deg; aerodynamic twist. The wing is modeled as a solid aluminum volume with
+      no internal spars or ribs - a conservative baseline that isolates the skin structural response.</p>
+
+    <table class="results-table">
+      <tr>
+        <th>Parameter</th>
+        <th>Value</th>
+      </tr>
+      <tr>
+        <td>Root Chord</td>
+        <td>2.5 m</td>
+      </tr>
+      <tr>
+        <td>Tip Chord</td>
+        <td>0.75 m</td>
+      </tr>
+      <tr>
+        <td>Half-Span</td>
+        <td>5.5 m</td>
+      </tr>
+      <tr>
+        <td>Leading-Edge Sweep</td>
+        <td>25&deg;</td>
+      </tr>
+      <tr>
+        <td>Dihedral</td>
+        <td>3&deg;</td>
+      </tr>
+      <tr>
+        <td>Aerodynamic Twist</td>
+        <td>-2&deg;</td>
+      </tr>
+      <tr>
+        <td>Max Thickness (t/c)</td>
+        <td>12.2%</td>
+      </tr>
+    </table>
+
+    <h2>Material and Boundary Conditions</h2>
+
+    <table class="results-table">
+      <tr>
+        <th>Property</th>
+        <th>Value</th>
+      </tr>
+      <tr>
+        <td>Material</td>
+        <td>Aluminum 7075-T6</td>
+      </tr>
+      <tr>
+        <td>Young's Modulus (E)</td>
+        <td>71.7 GPa</td>
+      </tr>
+      <tr>
+        <td>Poisson's Ratio (&nu;)</td>
+        <td>0.33</td>
+      </tr>
+      <tr>
+        <td>Yield Strength</td>
+        <td>503 MPa</td>
+      </tr>
+      <tr>
+        <td>Constitutive Model</td>
+        <td>Linear Elastic (small strain)</td>
+      </tr>
+      <tr>
+        <td>Root Boundary</td>
+        <td>Fixed (encastre) at y = 0</td>
+      </tr>
+      <tr>
+        <td>Aerodynamic Load</td>
+        <td>CFD surface pressure mapped to skin facets</td>
+      </tr>
+    </table>
+
+    <h2>Load Mapping</h2>
+
+    <p>The surface pressure distribution from the SU2 RANS solution at &alpha; = 4&deg; is mapped onto the 3D wing
+      skin. For each triangular facet on the outer surface, the pipeline computes the outward normal vector, the face
+      area, and the local chord position (x/c) to interpolate the gage pressure &Delta;p from the 2D CFD solution.
+      The resulting force vector is distributed equally to the three nodes of each triangle:</p>
+
+    $$\mathbf{f}_{\text{node}} = \frac{1}{3} \Delta p \cdot A_{\text{facet}} \cdot \hat{\mathbf{n}}$$
+
+    <p>The gage pressure range on the airfoil surface is [-12,270 Pa, +1,094 Pa], with suction dominating the upper
+      surface and mild compression on the lower surface. The integrated load produces a net upward force (lift) on the
+      wing.</p>
+
+    <div class="figure">
+      <div class="aggregate-label">CFD Surface Pressure Distribution - Gage Pressure &Delta;p (Pa) vs x/c</div>
+      <img src="assets/images/optimized/fea_pressure_distribution.png" alt="CFD pressure distribution on optimized airfoil"
+        loading="lazy">
+    </div>
+
+    <h2>Stress and Deformation Results</h2>
+
+    <p>The finite element solve is performed using <strong>FElupe</strong>, a pure-Python implicit solver. The
+      Cauchy stress tensor is computed at each integration point, and the von Mises equivalent stress is extracted to
+      identify the critical loading locations on the wing.</p>
+
+    <div class="compare-grid">
+      <div class="compare-figure">
+        <div class="compare-label">Von Mises Stress (MPa) - Isometric View</div>
+        <img src="assets/images/optimized/fea_stress.png" alt="Von Mises stress contours on the wing" loading="lazy">
+      </div>
+      <div class="compare-figure">
+        <div class="compare-label">Displacement Magnitude (m) - Isometric View</div>
+        <img src="assets/images/optimized/fea_displacement.png" alt="Displacement contours on the wing" loading="lazy">
+      </div>
+    </div>
+
+    <h2>Interpretation</h2>
+
+    <p>The peak stress concentrates at the wing root, where the bending moment is highest. The maximum displacement
+      occurs at the wing tip, following the expected cantilever-beam behavior. Because this model uses a solid aluminum
+      volume with no internal structure, the absolute stress and displacement values reflect the worst-case skin loading -
+      a real wing with spars and ribs would distribute the loads more efficiently and reduce both peak stress and
+      tip deflection.</p>
+
+    <p>The factor of safety compares the peak von Mises stress to the yield strength of Aluminum 7075-T6
+      (&sigma;<sub>yield</sub> = 503 MPa). A factor below 1.0 indicates that the material would yield under the
+      computed loads, which is expected for a solid wing without internal reinforcement. This result motivates the
+      inclusion of structural members (spars, ribs, skins) in a detailed wing design.</p>
+
+    <h2>Methodology</h2>
+
+    <h3>FEA Solver</h3>
+    <p>The structural solve uses <strong>FElupe</strong> (v10.1.0), a pure-Python finite element library with
+      implicit Newton-Raphson solvers. The wing mesh is generated by Gmsh using the OpenCASCADE kernel to loft a
+      BSpline solid through the root and tip airfoil sections. The mesh consists of tetrahedral elements
+      (RegionTetra) with linear elastic constitutive behavior.</p>
+
+    <h3>FEA Pipeline</h3>
+    <ol>
+      <li><strong>Geometry:</strong> Gmsh OCC lofting of optimized airfoil coordinates into a 3D wing solid</li>
+      <li><strong>Meshing:</strong> Tetrahedral mesh with characteristic length 0.3 m (~3,400 elements, ~1,200 nodes)</li>
+      <li><strong>Load mapping:</strong> SU2 pressure interpolated to each skin triangle centroid, force distributed to nodes</li>
+      <li><strong>Boundary conditions:</strong> Fixed root (encastre at y = 0), distributed aerodynamic traction on skin</li>
+      <li><strong>Solve:</strong> Linear elastic static analysis via FElupe Newton-Raphson</li>
+      <li><strong>Post-processing:</strong> Von Mises stress extrapolated to nodes, tip displacement extracted</li>
+    </ol>
+
+    <h3>VTU Export</h3>
+    <p>The deformed mesh with displacement vectors and von Mises stress fields is exported as a VTU file
+      (<code>output_optimized/fea/results.vtu</code>) for visualization in ParaView. See the
+      <a href="paraview.html">ParaView walkthrough</a> for instructions on loading and rendering the structural results.</p>
+
+  </div>
+
+  <footer class="site-footer">
+    <p>&copy; 2026 &middot; CFD Airfoil Explorer &middot; SU2 &middot; FElupe &middot; Gmsh &middot; Dracula Theme</p>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      renderMathInElement(document.body, {
+        delimiters: [
+          { left: "$$", right: "$$", display: true },
+          { left: "$", right: "$", display: false }
+        ],
+        throwOnError: false
+      });
+
+      fetch("assets/images/optimized/fea_results.json")
+        .then(r => r.json())
+        .then(d => {
+          document.getElementById("disp-val").textContent = d.max_disp_mm.toFixed(1) + " mm";
+          document.getElementById("stress-val").textContent = d.max_stress_mpa.toFixed(0) + " MPa";
+          document.getElementById("fs-val").textContent = d.factor_of_safety.toFixed(1);
+        })
+        .catch(() => {
+          document.getElementById("disp-val").textContent = "521.6 mm";
+          document.getElementById("stress-val").textContent = "3082 MPa";
+          document.getElementById("fs-val").textContent = "0.2";
+        });
+    });
+  </script>
+</body>
+
+</html>

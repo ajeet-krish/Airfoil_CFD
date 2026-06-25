@@ -13,4 +13,6 @@ dependencies = [
     "matplotlib>=3.9.0",
     "imageio>=2.35.0",
     "aerosandbox>=1.1.17",
+    "felupe>=10.1.0",
+    "meshio>=5.3.5",
 ]
