@@ -16,4 +16,5 @@ dependencies = [
     "felupe>=10.1.0",
     "meshio>=5.3.5",
     "cadquery>=2.4.0",
+    "trimesh>=4.12.2",
 ]

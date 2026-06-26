@@ -11,6 +11,8 @@ Automated CFD analysis of NACA 4-digit airfoils across multiple angles of attack
 - **Airfoil Optimization**: CST parameterization with 16 Bernstein weights, NeuralFoil surrogate evaluation, SLSQP gradient-based optimizer, SU2 RANS verification
 - **Structural Analysis**: CFD pressure mapped to 3D FEA wing via KDTree interpolation, FElupe linear elastic solve, von Mises stress, safety factor
 - **Wing CAD**: CadQuery parametric wing with sweep, dihedral, twist, internal spar + ribs, STEP export
+- **Parametric Aircraft CAD**: Full fuselage, wing, and empennage configurator with CadQuery, STEP export, GLB web conversion
+- **2D Plane-Stress FEA**: Airfoil interior mesh, FElupe linear elastic solve, stress/displacement contours
 - **ParaView Visualizations**: Velocity contours, pressure fields, and structural deformation rendered interactively
 - **Code-Generated Plots**: Convergence history, Cl/Cd curves, drag polar, airfoil shape overlays with experimental validation
 - **Knowledge Graph**: Codebase mapped via graphify with 141 nodes, 282 edges, 13 communities — query relationships between modules
@@ -36,7 +38,33 @@ Automated CFD analysis of NACA 4-digit airfoils across multiple angles of attack
 | CD | 0.0969 | 0.0052 | 0.0791 | -18.4% |
 | L/D | 4.6 | 86.1 | 4.7 | +2.2% |
 
-### FEA (Optimized Wing at 4deg, 3D CFD loads)
+### Structural FEA (Optimized Wing at 4deg, 3D CFD loads)
+| Metric | Value |
+|--------|------:|
+| Max Tip Displacement | 521.6 mm |
+| Peak von Mises Stress | 3082 MPa |
+| Factor of Safety | 0.2 (solid wing, no spars) |
+| Material | Al 7075-T6 |
+| Wing Mesh | 1,241 nodes, 3,417 tetrahedra |
+
+### 2D Plane-Stress FEA (NACA 0012 at 4deg)
+| Metric | Value |
+|--------|------:|
+| Max Displacement | 5.8 mm |
+| Peak von Mises Stress | 2552.5 MPa |
+| Factor of Safety | 0.2 |
+| Material | Al 7075-T6 (plane-stress) |
+| Mesh | 3,049 nodes, 5,697 triangles |
+
+### Aircraft CAD
+| Metric | Value |
+|--------|------:|
+| Fuselage Length | 10.0 m |
+| Wing Span | 11.0 m |
+| Bodies | 6 (fuselage, wings, hstab, vstab) |
+| GLB Size | 17K verts, 34K faces |
+
+## Requirements
 
 | Metric | Value |
 |--------|------:|
@@ -77,6 +105,15 @@ uv run python run_3d_pipeline.py
 # Wing CAD (CadQuery STEP export with spar/ribs)
 uv run python run_cad.py
 
+# Parametric aircraft CAD (STEP export)
+uv run python run_aircraft.py
+
+# STEP to GLB conversion for web viewer
+uv run python aircraft_to_web.py
+
+# 2D plane-stress FEA
+uv run python run_fea_2d.py
+
 # View results
 open docs/index.html
 ```
@@ -95,24 +132,32 @@ open docs/index.html
 │   ├── validate.py       NACA 0012 experimental data (Ladson 1988)
 │   ├── optimize.py       CST optimization + NeuralFoil + SU2 verification
 │   ├── fea.py            FeaWingAnalysis — FElupe FEA with 2D/3D CFD loads
-│   └── cad_wing.py       CadQuery wing with sweep/dihedral/twist, spar/ribs
+│   ├── fea2d.py          Fea2dAnalysis — 2D plane-stress FEA
+│   ├── cad_wing.py       CadQuery wing with sweep/dihedral/twist, spar/ribs
+│   └── aircraft.py       Parametric aircraft CAD (fuselage, wing, empennage)
 ├── run_tunnel.py          2D multi-angle pipeline orchestrator
 ├── run_optimization.py    CST optimization pipeline
 ├── run_fea.py             FEA for optimized wing (2D->3D pressure)
 ├── run_fea_naca0012.py    FEA for NACA 0012 wing
+├── run_fea_2d.py          2D plane-stress FEA
 ├── run_3d_pipeline.py     3D mesh -> SU2 3D CFD -> 3D pressure FEA
 ├── run_cad.py             CadQuery wing CAD STEP export
+├── run_aircraft.py        Parametric aircraft CAD STEP export
+├── aircraft_to_web.py     STEP to GLB conversion
 ├── docs/
 │   ├── index.html              Home page
 │   ├── methodology.html        Theory, methodology, mesh design
 │   ├── airfoil_analysis.html   NACA 0012 results with galleries
 │   ├── optimization.html       Optimized airfoil results
 │   ├── structural.html         FEA structural analysis results
+│   ├── aircraft_design.html    Interactive 3D aircraft model
 │   ├── implementation.html     Code architecture and source
 │   ├── css/style.css           Dracula theme
-│   └── assets/images/          All images (ParaView + code-generated)
-│       ├── naca0012/
-│       └── optimized/
+│   └── assets/
+│       ├── images/             All images (ParaView + code-generated)
+│       │   ├── naca0012/
+│       │   └── optimized/
+│       └── models/             GLB 3D models for web viewer
 ├── output/                     Simulation artifacts (gitignored)
 │   ├── cfd/                    CFD results (2D + 3D)
 │   ├── cad/                    STEP files

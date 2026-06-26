@@ -20,6 +20,7 @@
   <a href="airfoil_analysis.html">Airfoil Analysis</a>
   <a href="optimization.html">Optimization</a>
   <a href="structural.html">Structural Analysis</a>
+  <a href="aircraft_design.html">Aircraft Design</a>
   <a href="implementation.html">Implementation</a>
 </div>
 
@@ -37,29 +38,39 @@
   <div class="callout">
     <div class="callout-tag">How to Run</div>
     <p style="margin-bottom:6px">From the project root, run:</p>
-    <pre><code>uv run python run_tunnel.py</code></pre>
-    <p style="margin-bottom:0;margin-top:6px">This generates geometry, meshes, solves, and post-processes all 5 angles of attack. Expect ~30 minutes total on an M-series Mac. Output appears in <code>output/cfd/naca0012/</code> and plots go to <code>docs/assets/images/naca0012/</code>.</p>
+    <pre><code>uv run python run_tunnel.py         # Multi-angle CFD pipeline (~30 min)
+uv run python run_optimization.py   # CST shape optimization (~10 min)
+uv run python run_fea_2d.py         # 2D plane-stress FEA (~10 sec)
+uv run python run_aircraft.py       # Aircraft CAD model (STEP) (~5 sec)
+uv run python aircraft_to_web.py    # STEP to GLB web conversion (~10 sec)</code></pre>
+    <p style="margin-bottom:0;margin-top:6px">The main CFD pipeline generates geometry, meshes, solves, and post-processes all 5 angles of attack. Output appears in <code>output/cfd/naca0012/</code> and plots go to <code>docs/assets/images/naca0012/</code>. The optimization, FEA, and aircraft modules run independently.</p>
   </div>
 
   <h2>Code Architecture</h2>
 
-  <p>The pipeline is organized into five modular components under <code>physics/</code>:</p>
+  <p>The pipeline is organized into modular components under <code>physics/</code>:</p>
 
   <table>
     <tr><th>Module</th><th>Class/Function</th><th>Purpose</th></tr>
     <tr><td><code>geometry.py</code></td><td><code>generate_naca_4digit()</code></td><td>NACA 4-digit coordinate generation with cosine spacing</td></tr>
     <tr><td><code>mesher.py</code></td><td><code>MeshGenerator</code></td><td>Hybrid C-grid with structured boundary layers via Gmsh</td></tr>
-    <tr><td><code>solver.py</code></td><td><code>SU2Config</code>, <code>SU2Solver</code>, <code>SU2Results</code></td><td>Config generation, solver execution, result parsing</td></tr>
+    <tr><td><code>mesher3d.py</code></td><td><code>MeshGenerator3D</code></td><td>Gmsh OCC boolean-cut 3D mesher for imported STEP wings</td></tr>
+    <tr><td><code>solver.py</code></td><td><code>SU2Config</code>, <code>SU2Config3D</code>, <code>SU2Solver</code>, <code>SU2Results</code></td><td>Config generation, solver execution, result parsing (2D + 3D)</td></tr>
     <tr><td><code>post.py</code></td><td><em>(placeholder)</em></td><td>ParaView replaces all field visualizations; convergence/aggregates in analysis.py</td></tr>
-    <tr><td><code>optimize.py</code></td><td><code>run_optimization()</code></td><td>CST-based airfoil shape optimization with NeuralFoil surrogate + 7 constraints</td></tr>
+    <tr><td><code>optimize.py</code></td><td><code>run_optimization()</code></td><td>CST-based airfoil shape optimization with NeuralFoil surrogate + 9 constraints</td></tr>
     <tr><td><code>analysis.py</code></td><td><code>plot_convergence</code>, <code>plot_cl_alpha</code>, etc.</td><td>Convergence plots, $C_l$/$C_d$ curves, drag polar with experimental overlay</td></tr>
+    <tr><td><code>fea.py</code></td><td><code>FeaWingAnalysis</code></td><td>3D wing FEA: Gmsh OCC loft, FElupe linear elastic, von Mises stress, VTU export</td></tr>
+    <tr><td><code>fea2d.py</code></td><td><code>Fea2dAnalysis</code></td><td>2D plane-stress FEA: airfoil cross-section, Gmsh triangle mesh, pressure boundary loads</td></tr>
+    <tr><td><code>cad_wing.py</code></td><td><code>generate_wing()</code></td><td>CadQuery parametric wing with I-beam spar and ribs, STEP export</td></tr>
+    <tr><td><code>aircraft.py</code></td><td><code>build_aircraft()</code></td><td>Parametric aircraft configurator: fuselage, full wing, H-stab, V-stab, STEP export</td></tr>
+    <tr><td><code>validate.py</code></td><td><code>get_cl_alpha</code>, <code>get_cd_alpha</code>, etc.</td><td>Experimental NACA 0012 data (Ladson 1988, Abbott 1949)</td></tr>
   </table>
 
-  <p>The orchestrator <code>run_tunnel.py</code> iterates through angles of attack, coordinates the pipeline stages, aggregates results, and writes plots directly to <code>docs/assets/images/naca0012/</code>.</p>
+  <p>The orchestrator <code>run_tunnel.py</code> iterates through angles of attack, coordinates the pipeline stages, aggregates results, and writes plots directly to <code>docs/assets/images/naca0012/</code>. Additional entrypoints handle optimization (<code>run_optimization.py</code>), 2D FEA (<code>run_fea_2d.py</code>), 3D structural analysis (<code>run_fea.py</code>, <code>run_fea_naca0012.py</code>), 3D CFD pipeline (<code>run_3d_pipeline.py</code>), aircraft CAD (<code>run_aircraft.py</code>), and web model conversion (<code>aircraft_to_web.py</code>).</p>
 
   <h2>SU2 Configuration Reference</h2>
 
-  <p>The solver configuration is generated programmatically by the <code>SU2Config</code> dataclass. Key settings:</p>
+  <p>The solver configuration is generated programmatically by the <code>SU2Config</code> (2D) and <code>SU2Config3D</code> (3D) dataclasses. Key settings for the 2D RANS configuration:</p>
 
   <table>
     <tr><th>Option</th><th>Value</th><th>Rationale</th></tr>
@@ -80,7 +91,7 @@
   <hr class="divider">
 
   <h2>Full Source Code</h2>
-  <p>Complete source for all pipeline modules. Click to expand:</p>
+  <p>Complete source for core pipeline modules. Additional modules (<code>physics/fea.py</code>, <code>physics/fea2d.py</code>, <code>physics/cad_wing.py</code>, <code>physics/aircraft.py</code>) follow the same Dracula-themed pattern and are available in the repository. Click to expand:</p>
 
   <div class="code-block"><details><summary><code>physics/geometry.py</code> - NACA 4-digit airfoil coordinates</summary><pre><code class="language-python">from __future__ import annotations
 

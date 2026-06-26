@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Parametric aircraft CAD model with wing, fuselage, and empennage">
+  <title>Aircraft Design - CFD Airfoil Explorer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xz/fonts@1/serve/meslo-lg.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    model-viewer {
+      width: 100%;
+      height: 500px;
+      background: var(--card-bg);
+      border: 1px solid var(--current-line);
+      border-radius: 6px;
+      margin: 20px 0;
+    }
+    .viewer-container {
+      position: relative;
+    }
+    .viewer-hint {
+      text-align: center;
+      font-size: 0.75em;
+      color: var(--comment);
+      margin-top: -10px;
+      margin-bottom: 20px;
+    }
+    .spec-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      font-size: 0.9em;
+    }
+    .spec-table th, .spec-table td {
+      padding: 8px 16px;
+      text-align: left;
+      background: var(--card-bg);
+      border-bottom: 1px solid var(--current-line);
+    }
+    .spec-table th {
+      color: var(--comment);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-size: 0.7em;
+      font-weight: normal;
+    }
+    .spec-table td {
+      color: var(--cyan);
+    }
+    .spec-table tr td:first-child {
+      border-left: 4px solid var(--purple);
+      padding-left: 12px;
+    }
+    @media (max-width: 720px) {
+      model-viewer { height: 300px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="top-nav">
+  <a href="index.html">Home</a>
+  <a href="methodology.html">Methodology</a>
+  <a href="airfoil_analysis.html">Airfoil Analysis</a>
+  <a href="optimization.html">Optimization</a>
+  <a href="structural.html">Structural Analysis</a>
+  <a href="aircraft_design.html">Aircraft Design</a>
+  <a href="implementation.html">Implementation</a>
+</div>
+
+<div class="container">
+
+  <div class="hero" style="padding:2rem 0 0.5rem">
+    <h1>Aircraft <span style="color:var(--cyan)">Design</span></h1>
+    <p>Parametric aircraft configurator - fuselage, wing, and empennage designed with CadQuery and exported as STEP for manufacturing.</p>
+  </div>
+
+  <hr class="divider">
+
+  <h2>Interactive 3D Model</h2>
+
+  <p>The model below is a parametric general aviation aircraft built entirely in Python with CadQuery. The wing uses the optimized airfoil shape from the aerodynamic optimization pipeline, lofted from root to tip with 25&deg; sweep, 3&deg; dihedral, and -2&deg; twist. The fuselage is an elliptical cross-section body with nose-to-tail tapering. The empennage consists of a horizontal stabilizer and vertical stabilizer using NACA 0012 sections.</p>
+
+  <div class="viewer-container">
+    <model-viewer
+      id="aircraft-viewer"
+      src="assets/models/aircraft.glb"
+      alt="Parametric aircraft 3D model"
+      camera-controls
+      auto-rotate
+      shadow-intensity="1"
+      exposure="1.2"
+      interaction-prompt="auto"
+      disable-zoom
+    ></model-viewer>
+  </div>
+  <div class="viewer-hint">Drag to rotate &middot; Scroll to zoom &middot; Right-click to pan</div>
+
+  <h2>Aircraft Specifications</h2>
+
+  <table class="spec-table">
+    <tr><th>Parameter</th><th>Value</th></tr>
+    <tr><td>Fuselage Length</td><td>10.0 m</td></tr>
+    <tr><td>Fuselage Width</td><td>1.2 m</td></tr>
+    <tr><td>Fuselage Height</td><td>0.8 m</td></tr>
+    <tr><td>Wing Span</td><td>11.0 m</td></tr>
+    <tr><td>Wing Root Chord</td><td>2.5 m</td></tr>
+    <tr><td>Wing Tip Chord</td><td>0.75 m</td></tr>
+    <tr><td>Wing Sweep</td><td>25&deg;</td></tr>
+    <tr><td>Wing Dihedral</td><td>3&deg;</td></tr>
+    <tr><td>Wing Twist</td><td>-2&deg;</td></tr>
+    <tr><td>H-Stab Span</td><td>2.0 m</td></tr>
+    <tr><td>V-Stab Height</td><td>1.5 m</td></tr>
+    <tr><td>Airfoil (Wing)</td><td>Optimized (12.2% t/c)</td></tr>
+  </table>
+
+  <h2>Design Decisions</h2>
+
+  <h3>Fuselage</h3>
+  <p>The fuselage uses an elliptical cross-section with a 1.5:1 width-to-height ratio. This provides a good balance between aerodynamic efficiency (elliptical sections reduce form drag compared to rectangular) and internal volume for payload and systems. The nose tapers smoothly to a rounded tip, reaching full cross-section at 60% of the length. The fuselage maintains constant cross-section to 65% length, then tapers gradually through the empennage area to a rounded tail cone..</p>
+
+  <h3>Wing</h3>
+  <p>The wing uses a three-section loft: the root is at the aircraft centerline (Y=0), and it tapers linearly to the tip at Y=5.5 m with a taper ratio of 0.3 (tip chord / root chord). The 25&deg; sweep improves high-speed performance and shifts the center of pressure aft for longitudinal stability. The 3&deg; dihedral provides lateral stability through the pendulum effect. The -2&deg; twist (washout) reduces the local angle of attack at the tip relative to the root, ensuring the root stalls before the tip for safer stall characteristics.</p>
+
+  <h3>Empennage</h3>
+  <p>The horizontal stabilizer uses a smaller-span, lower-aspect-ratio version of the same airfoil, mounted at the tail with 15&deg; sweep. The vertical stabilizer uses a NACA 0012 symmetric airfoil rotated 90&deg; to the vertical plane with 30&deg; sweep. Both surfaces are sized to provide adequate pitch and yaw authority for the fuselage and wing geometry.</p>
+
+  <h2>Design Philosophy</h2>
+
+  <p>The aircraft is designed as a parametric template rather than a specific production model. Every dimension is adjustable through the Python API in <code>physics/aircraft.py</code>. The current configuration represents a mid-wing general aviation aircraft in the class of a 4-seat tourer or light utility aircraft. The geometry is intentionally simplified - no landing gear, engine nacelles, control surfaces, or internal structure - to serve as a starting point for parametric CAD studies.</p>
+
+</div>
+
+<footer class="site-footer">
+  <p>&copy; 2026 &middot; CFD Airfoil Explorer &middot; CadQuery &middot; STEP &middot; Dracula Theme</p>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+<script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.0.0/model-viewer.min.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  renderMathInElement(document.body, {
+    delimiters: [
+      { left: "$$", right: "$$", display: true },
+      { left: "$", right: "$", display: false }
+    ],
+    throwOnError: false
+  });
+});
+</script>
+</body>
+</html>

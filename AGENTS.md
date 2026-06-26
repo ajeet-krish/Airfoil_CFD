@@ -6,8 +6,9 @@ Generates C-grid meshes (Gmsh), solves RANS equations (SU2, Spalart-Allmaras),
 and outputs a static Dracula-themed portfolio website with ParaView field
 visualizations and matplotlib convergence/aggregate plots with experimental
 validation. Includes airfoil shape optimization (CST + NeuralFoil + SLSQP),
-structural FEA (FElupe), 3D wing CFD pipeline (2.5D extrusion), and
-CadQuery wing CAD (STEP export with spar/ribs).
+structural FEA (FElupe 3D + 2D plane-stress), 3D wing CFD pipeline (2.5D extrusion),
+CadQuery wing CAD (STEP export with spar/ribs), and parametric aircraft CAD
+(fuselage, full wing, empennage, GLB web export).
 
 ## Style Rules
 - **No em dashes** anywhere in the website. Use a regular hyphen `-` instead of `--`, `&mdash;`, `&ndash;`, or the literal Unicode em dash `—`.
@@ -70,12 +71,28 @@ Always reference Soccer CFD when stuck on architecture or visualization question
   - STEP export for manufacturing/CAD downstream
   - Called by `run_cad.py` for both NACA 0012 and optimized wing
 
+- `fea2d.py` - `Fea2dAnalysis` class. 2D plane-stress FEA:
+  - Reads 2D SU2 VTU + airfoil .dat, extracts surface pressure via KDTree
+  - Gmsh triangle mesh of airfoil interior, FElupe LinearElastic(plane_stress=True)
+  - Trailing edge fixed BC, pressure load on boundary edges
+  - Von Mises stress, VTU export, PyVista stress+displacement contour plots
+  - Output to docs/assets/images/{naca0012,optimized}/fea2d_*.png
+
+- `aircraft.py` - `build_aircraft()` function. Parametric aircraft configurator:
+  - Fuselage: elliptical cross-sections lofted along X (nose-to-tail tapering)
+  - Full wing: three-section loft with sweep, dihedral, twist (both halves)
+  - H-stab and V-stab using NACA 0012 symmetric airfoil
+  - CadQuery Compound assembly, STEP export to output/cad/
+  - Maintains 1.5:1 width/height aspect ratio across all loft sections
+
 ### Workflow
 For standard multi-angle analysis: `run_tunnel.py` orchestrates geometry -> C-grid mesh -> SU2 solver -> convergence plots -> aggregate plots.
 For single-airfoil optimization: `run_optimization.py` runs CST optimization (NeuralFoil) -> meshes optimized shape -> runs SU2 RANS -> generates comparison.
 For structural analysis (2D pressure): `run_fea.py` runs extract_pressure -> generate_wing_geometry -> solve (with loads) -> stress computation -> VTU export -> 3D plots.
+For 2D plane-stress FEA: `run_fea_2d.py` runs extract_pressure -> generate_2d_mesh -> solve -> stress -> VTU export -> 2D contour plots (for both NACA 0012 and optimized).
 For 3D wing pipeline: `run_3d_pipeline.py` runs 2.5D extrusion mesh -> SU2 3D RANS -> FEA with 3D surface pressure (for both NACA 0012 and optimized wing).
 For wing CAD: `run_cad.py` generates CadQuery STEP files with spar/ribs.
+For aircraft CAD: `run_aircraft.py` builds full parametric aircraft, then `aircraft_to_web.py` converts STEP to GLB for web viewer.
 All images go directly to `docs/assets/images/naca0012/` (per-AoA in `aoa_*` subdirs, plots in `plots/`, mesh in `mesh_naca0012/`).
 `output/cfd/naca0012/` contains 2D CFD artifacts, `output/cfd/naca0012_3d/` and `output/cfd/optimized_3d/` contain 3D pipeline artifacts, `output/cad/` for STEP files, `output/fea/` for FEA results.
 
@@ -88,8 +105,11 @@ uv run python run_tunnel.py         # Standard multi-angle analysis (~30 min)
 uv run python run_optimization.py   # Single-airfoil CST optimization (~2 sec + SU2 ~10 min)
 uv run python run_fea.py            # Structural FEA for optimized wing (~6 sec)
 uv run python run_fea_naca0012.py   # Structural FEA for NACA 0012 wing
+uv run python run_fea_2d.py         # 2D plane-stress FEA for both airfoils (~10 sec)
 uv run python run_3d_pipeline.py    # 3D mesh -> SU2 3D CFD -> 3D pressure FEA (~25 min)
 uv run python run_cad.py            # CadQuery wing CAD STEP export
+uv run python run_aircraft.py       # Parametric aircraft CAD STEP export (~5 sec)
+uv run python aircraft_to_web.py    # STEP to GLB conversion for web viewer (~10 sec)
 ```
 
 ---
@@ -183,8 +203,9 @@ uv run python run_cad.py            # CadQuery wing CAD STEP export
 - `docs/optimization.html` - Optimized shape results: shape comparison, velocity/pressure contours, real-life match, optimization setup
 - `docs/structural.html` - Structural analysis: FEA results, stress/displacement contours, load mapping methodology
 - `docs/implementation.html` - How to run, code architecture, SU2 config reference, 5 expandable source blocks
+- `docs/aircraft_design.html` - Interactive 3D model-viewer: specs table, design decisions
 - `paraview_recipes.md` - (project root, untracked) ParaView step-by-step in markdown
-- All pages share `nav.top-nav` bar: **Home | Methodology | Airfoil Analysis | Optimization | Structural Analysis | Implementation**
+- All pages share `nav.top-nav` bar: **Home | Methodology | Airfoil Analysis | Optimization | Structural Analysis | Aircraft Design | Implementation**
 - CSS is minimalist Dracula inspired by `/Users/ajeet/Projects/Digital\ CV`: `#21222c` card bg, `border-left` accent, no hover lift/shadow, no gradients, monospace throughout
 - Images go directly to `docs/assets/images/` - no sync step needed
 - `docs/` is the GitHub Pages root
@@ -271,12 +292,26 @@ Lift curve slope: 0.109 per degree (matches theoretical 2pi within 1%)
 | Material | Al 7075-T6 |
 | Wing Mesh | 1,241 nodes, 3,417 tetrahedra |
 
+## 2D Plane-Stress FEA Results (2026-06-26)
+
+### NACA 0012 at 4deg
+| Metric | Value |
+|--------|------:|
+| Max Displacement | 5.8 mm |
+| Peak von Mises Stress | 2552.5 MPa |
+| Factor of Safety | 0.2 |
+| Material | Al 7075-T6 (plane-stress) |
+| Mesh | 3,049 nodes, 5,697 triangles |
+
+### Optimized Airfoil at 4deg
+- CFD results not yet available (SU2 verification not run)
+
 ### Notes
-- FS < 1.0 expected: solid wing with no internal spars/ribs
-- Pressure mapped from 2D SU2 RANS solution to 3D skin facets (FeaWingAnalysis.run())
-- 3D pressure uses KDTree 3D-to-3D interpolation via FeaWingAnalysis.run_with_3d()
-- VTU exported to `output/fea/optimized/results.vtu` for ParaView
-- 3D contour plots generated by PyVista off-screen
+- Mesh concatenation fix in `fea2d.py`: Gmsh creates 1 cell block per line entity
+  (399 individual blocks). The fix concatenates all line blocks with physical=1
+  instead of reading only the first block found.
+- FElupe warning "Cauchy stress tensor can't be evaluated on a 2d-Field" is normal;
+  Kirchhoff stress fallback is used internally by FElupe.
 
 ---
 
@@ -289,6 +324,9 @@ uv run python run_fea.py          # Structural analysis (~6 sec)
 uv run python run_fea_naca0012.py # NACA 0012 structural FEA (~6 sec)
 uv run python run_3d_pipeline.py  # 3D mesh -> SU2 3D CFD -> 3D pressure FEA (~25 min)
 uv run python run_cad.py          # CadQuery wing STEP export
+uv run python run_fea_2d.py       # 2D plane-stress FEA (~10 sec)
+uv run python run_aircraft.py     # Parametric aircraft CAD (~5 sec)
+uv run python aircraft_to_web.py  # STEP to GLB for web viewer (~10 sec)
 # No build step - static HTML hand-authored; edit files directly in docs/
 open docs/index.html              # View portfolio site
 ```
@@ -332,6 +370,47 @@ open docs/index.html              # View portfolio site
     FEA alongside optimized wing.
 17. **Knowledge graph**: `graphify-out/` codebase graph — 141 nodes, 282 edges, 13 communities.
     Accessible via `graph-out/graph.html` and `GRAPH_REPORT.md`.
+
+## Recent Additions (2026-06-26)
+18. **2D plane-stress FEA**: `physics/fea2d.py` with `Fea2dAnalysis` class - reads 2D SU2 VTU pressure,
+    Gmsh triangle mesh of airfoil interior, FElupe LinearElastic(plane_stress=True), trailing edge fixed BC,
+    pressure boundary loads, von Mises stress export, PyVista contour plots.
+19. **2D FEA runner**: `run_fea_2d.py` runs both NACA 0012 and optimized airfoil at 4deg AoA.
+20. **Parametric aircraft CAD**: `physics/aircraft.py` with `build_aircraft()` - elliptical fuselage loft,
+    full wing (three-section loft with both halves), H-stab, V-stab. CadQuery Compound assembly, STEP export.
+21. **Aircraft entrypoint**: `run_aircraft.py` generates aircraft STEP in `output/cad/aircraft.step`.
+22. **Web model converter**: `aircraft_to_web.py` converts STEP to GLB for `<model-viewer>` web display.
+23. **Aircraft Design page**: New standalone `docs/aircraft_design.html` with interactive 3D model-viewer,
+    spec grid, design decisions, STEP download link. Uses `@google/model-viewer` component.
+24. **Navigation updated**: All 7 HTML pages now have **Home | Methodology | Airfoil Analysis |
+    Optimization | Structural Analysis | Aircraft Design | Implementation** nav bar.
+25. **Structural page updated**: Added 2D plane-stress FEA section with comparison grid, metrics cards,
+    JSON data fetch for both NACA 0012 and optimized results.
+26. **Implementation page updated**: Module table expanded to 12 entries, new quick-start commands, updated
+    architecture description with all entrypoints.
+27. **Aircraft CAD coordinate fix (2026-06-26)**: Rewrote `physics/aircraft.py` to fix fundamental coordinate system
+    mismatch. Aircraft coordinates (X=forward, Y=right/span, Z=up) were mapped to wrong CadQuery axes (X=right, Y=up,
+    Z=forward). Changed `_make_fuselage` to Workplane("XY") + Z-offset; `_make_half_wing`/`_make_hstab` to
+    Workplane("YZ") + X-offset with airfoil spline mapped as (thickness, chord) to (local_Y, local_Z);
+    `_make_vstab` to Workplane("XZ") + negated Y-offset. All translate/mirror calls updated.
+    Fixed `aircraft_to_web.py` Vector-to-tuple for trimesh. Generated 1.1MB STEP, 273KB GLB.
+28. **Aircraft CAD refinement (2026-06-26)**: Lowered V-stab y_offset to 0.0 so entire root chord sits at fuselage
+    centerline (fully embedded, touching along entire V-stab root). Added `vstab_coords` parameter for separate
+    V-stab airfoil; V-stab now uses NACA 0012. Fuselage nose redesigned with 8-section profile starting at
+    (0.15, 0.10) for a rounded front, transitioning smoothly to full cross-section by 40% length. Fuselage
+    length increased to 10.0m. Main wing/hstab use optimized airfoil.
+
+## Recent Additions (2026-06-27)
+29. **Smooth fuselage nose profile**: Replaced ogive nose with evenly-spaced sections (5%, 10%, 15%, 20%, 30%, 40%)
+    with radii growing naturally (8%, 18%, 30%, 42%, 54%, 65%, 75%, 83%, 90%, 95%, 98%, 100%) for a smoother
+    transition from tip to body. 17 sections total.
+30. **Fuselage tail restored to original geometry**: Constant body from z=6m to z=6.5m, then tapers 100%→70%→30%→1cm
+    over z=6.5m-10m (matching pre-modification profile). Final cap increased from 1cm to 4cm radius for proper
+    GLB tessellation closure.
+31. **Aircraft Design page updated**: Replaced `.spec-grid` cards with a proper `<table>` (Dracula-styled with
+    purple left border, cyan values). Removed STEP Download section. Removed "Generating the Model" section.
+32. **Key loft lesson**: All CadQuery loft sections must maintain consistent aspect ratio (1.5:1 width/height for
+    fuselage). Mismatched aspect ratios in final sections cause inverted/open back surfaces.
 
 ## Color Scheme (Dracula)
 - Background: `#282a36`

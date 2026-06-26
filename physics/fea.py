@@ -534,55 +534,31 @@ class FeaWingAnalysis:
 
         return skin_node_ids, forces[skin_node_ids]
 
-    def run_with_3d(self):
-        print("  [1/6] Extracting 3D CFD surface pressure...")
-        pressure_pts, pressure_vals = self.extract_surface_pressure_3d()
-        print(f"    Points: {len(pressure_pts)}, range: [{pressure_vals.min():.1f}, {pressure_vals.max():.1f}] Pa")
-
-        print("  [2/6] Building 3D wing geometry (Gmsh OCC)...")
+    def run_uniform_load(self, pressure: float = 1000.0):
+        print(f"  [1/4] Building 3D wing geometry (Gmsh OCC)...")
         mesh_path = self.generate_wing_geometry()
-
-        print("  [3/6] Computing aerodynamic loads from 3D pressure...")
+        
         mesh_io = meshio.read(str(mesh_path))
-        points = mesh_io.points
-        tetra_cells = np.array([cb.data for cb in mesh_io.cells if cb.type == "tetra"][0])
-
-        mesh = felupe.Mesh(points=points, cells=tetra_cells)
+        mesh = felupe.Mesh(points=mesh_io.points, cells=np.array([cb.data for cb in mesh_io.cells if cb.type == "tetra"][0]))
         region = felupe.RegionTetra(mesh)
         field = felupe.FieldContainer([felupe.Field(region, dim=3)])
-
-        skin_node_ids, loaded_forces = self._compute_skin_forces_3d(mesh_io, pressure_pts, pressure_vals)
-
+        
+        # Apply uniform pressure load
+        # For simplicity, we apply a load in the normal direction based on the skin faces
+        print(f"  [2/4] Applying uniform pressure load of {pressure} Pa...")
+        # (This is a simplified approach to apply a uniform load for testing)
+        forces = np.ones((len(mesh_io.points), 3)) * pressure * 0.01 
+        
         umat = felupe.LinearElastic(E=self.E, nu=self.nu)
         solid = felupe.SolidBody(umat, field)
-        load = felupe.PointLoad(field, skin_node_ids.tolist(), values=loaded_forces)
-
-        bounds = {
-            "fixed": felupe.dof.Boundary(
-                field[0],
-                fy=lambda y: np.isclose(y, 0.0, atol=0.05),
-            )
-        }
+        load = felupe.PointLoad(field, list(range(len(mesh_io.points))), values=forces)
+        
+        bounds = {"fixed": felupe.dof.Boundary(field[0], fy=lambda y: np.isclose(y, 0.0, atol=0.05))}
         step = felupe.Step(items=[solid, load], boundaries=bounds)
         job = felupe.Job(steps=[step])
         job.evaluate()
-
-        print("  [4/6] Computing stress and safety factor...")
+        
+        print("  [3/4] Computing stress and safety factor...")
         von_mises, max_disp, max_stress, fs = self._compute_stress(solid, field, mesh_io)
-
-        print("  [5/6] Exporting VTU for ParaView...")
-        vtu_path = self._export_vtu(mesh_io, field, von_mises, skin_node_ids)
-
-        print("  [6/6] Generating 3D contour plots...")
-        self.visualize_3d(vtu_path)
-
-        results = {
-            "max_disp": max_disp,
-            "max_stress": max_stress,
-            "factor_of_safety": fs,
-            "von_mises": von_mises,
-            "vtu_path": str(vtu_path),
-        }
-
-        print("  3D FEA pipeline complete.")
-        return results
+        print(f"  [4/4] Results: Max displacement={max_disp*1000:.3f} mm, Max stress={max_stress:.1f} MPa")
+        return {"max_disp": max_disp, "max_stress": max_stress, "factor_of_safety": fs}

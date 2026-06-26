@@ -21,6 +21,7 @@
     <a href="airfoil_analysis.html">Airfoil Analysis</a>
     <a href="optimization.html">Optimization</a>
     <a href="structural.html">Structural Analysis</a>
+    <a href="aircraft_design.html">Aircraft Design</a>
     <a href="implementation.html">Implementation</a>
   </div>
 
@@ -180,6 +181,63 @@
       computed loads, which is expected for a solid wing without internal reinforcement. This result motivates the
       inclusion of structural members (spars, ribs, skins) in a detailed wing design.</p>
 
+    <hr class="divider">
+
+    <h2>2D Plane-Stress Analysis</h2>
+
+    <p>In addition to the 3D solid wing analysis, a <strong>2D plane-stress</strong> FEA is performed on the airfoil
+      cross-section at the root. This models the airfoil as a thin slice under the same aerodynamic pressure loading,
+      using FElupe's <code>LinearElastic(plane_stress=True)</code> formulation with 2D triangular elements.
+      The trailing edge is fixed, and the pressure load is applied as distributed forces along the boundary edges.</p>
+
+    <div class="metrics-grid">
+      <div class="metric-card lift">
+        <div class="metric-label">NACA 0012 - Max Stress</div>
+        <div class="metric-value hl-pink" id="stress-0012-val">-</div>
+      </div>
+      <div class="metric-card drag">
+        <div class="metric-label">NACA 0012 - Max Disp</div>
+        <div class="metric-value hl-cyan" id="disp-0012-val">-</div>
+      </div>
+      <div class="metric-card ratio">
+        <div class="metric-label">Optimized - Max Stress</div>
+        <div class="metric-value hl-pink" id="stress-opt-val">-</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Optimized - Max Disp</div>
+        <div class="metric-value hl-cyan" id="disp-opt-val">-</div>
+      </div>
+    </div>
+
+    <div class="compare-grid">
+      <div class="compare-figure">
+        <div class="compare-label">NACA 0012 - Von Mises Stress (MPa)</div>
+        <img src="assets/images/naca0012/fea2d_stress.png" alt="NACA 0012 2D FEA stress" loading="lazy">
+      </div>
+      <div class="compare-figure">
+        <div class="compare-label">Optimized - Von Mises Stress (MPa)</div>
+        <img src="assets/images/optimized/fea2d_stress.png" alt="Optimized 2D FEA stress" loading="lazy">
+      </div>
+    </div>
+
+    <div class="compare-grid">
+      <div class="compare-figure">
+        <div class="compare-label">NACA 0012 - Displacement (m)</div>
+        <img src="assets/images/naca0012/fea2d_displacement.png" alt="NACA 0012 2D FEA displacement" loading="lazy">
+      </div>
+      <div class="compare-figure">
+        <div class="compare-label">Optimized - Displacement (m)</div>
+        <img src="assets/images/optimized/fea2d_displacement.png" alt="Optimized 2D FEA displacement" loading="lazy">
+      </div>
+    </div>
+
+    <h3>2D vs 3D Approach</h3>
+    <p>The 2D plane-stress analysis is faster and simpler than the full 3D wing solve, but it models only a single
+      cross-section with plane-stress assumptions (no variation through the thickness). The 3D analysis captures the
+      full spanwise bending and torsional response. Both are included here for comparison: the 2D analysis provides
+      insight into the cross-sectional stress distribution around the airfoil contour, while the 3D analysis captures
+      the global wing deformation.</p>
+
     <h2>Methodology</h2>
 
     <h3>FEA Solver</h3>
@@ -232,6 +290,28 @@
           document.getElementById("disp-val").textContent = "521.6 mm";
           document.getElementById("stress-val").textContent = "3082 MPa";
           document.getElementById("fs-val").textContent = "0.2";
+        });
+
+      fetch("assets/images/naca0012/fea2d_results.json")
+        .then(r => r.json())
+        .then(d => {
+          document.getElementById("stress-0012-val").textContent = d.max_stress_mpa.toFixed(0) + " MPa";
+          document.getElementById("disp-0012-val").textContent = (d.max_disp_mm || 0).toFixed(2) + " mm";
+        })
+        .catch(() => {
+          document.getElementById("stress-0012-val").textContent = "--";
+          document.getElementById("disp-0012-val").textContent = "--";
+        });
+
+      fetch("assets/images/optimized/fea2d_results.json")
+        .then(r => r.json())
+        .then(d => {
+          document.getElementById("stress-opt-val").textContent = d.max_stress_mpa.toFixed(0) + " MPa";
+          document.getElementById("disp-opt-val").textContent = (d.max_disp_mm || 0).toFixed(2) + " mm";
+        })
+        .catch(() => {
+          document.getElementById("stress-opt-val").textContent = "--";
+          document.getElementById("disp-opt-val").textContent = "--";
         });
     });
   </script>
