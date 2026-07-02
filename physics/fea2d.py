@@ -77,13 +77,15 @@ class Fea2dAnalysis:
         gmsh.initialize()
         gmsh.model.add("airfoil_2d")
 
+        # Deduplicate coincident TE point (sharp TE, e.g. optimized)
+        unique_coords = coords
+        if np.allclose(coords[0], coords[-1]):
+            unique_coords = coords[:-1]
         pts = []
-        for x, y in coords:
+        for x, y in unique_coords:
             pid = gmsh.model.geo.addPoint(x, y, 0.0)
             pts.append(pid)
 
-        # Use individual lines between consecutive points so Gmsh
-        # places mesh nodes at every .dat coordinate
         lines = []
         for i in range(len(pts)):
             lines.append(gmsh.model.geo.addLine(pts[i], pts[(i + 1) % len(pts)]))
@@ -95,7 +97,17 @@ class Fea2dAnalysis:
         gmsh.model.addPhysicalGroup(1, lines, name="airfoil_boundary")
         gmsh.model.addPhysicalGroup(2, [surf], name="airfoil_interior")
 
-        gmsh.option.setNumber("Mesh.CharacteristicLengthMax", 0.02)
+        dist = gmsh.model.mesh.field.add("Distance")
+        gmsh.model.mesh.field.setNumbers(dist, "CurvesList", lines)
+        thresh = gmsh.model.mesh.field.add("Threshold")
+        gmsh.model.mesh.field.setNumber(thresh, "InField", dist)
+        gmsh.model.mesh.field.setNumber(thresh, "SizeMin", 0.002)
+        gmsh.model.mesh.field.setNumber(thresh, "SizeMax", 0.008)
+        gmsh.model.mesh.field.setNumber(thresh, "DistMin", 0.01)
+        gmsh.model.mesh.field.setNumber(thresh, "DistMax", 0.15)
+        gmsh.model.mesh.field.setAsBackgroundMesh(thresh)
+
+        gmsh.option.setNumber("Mesh.CharacteristicLengthMax", 0.008)
         gmsh.model.mesh.generate(2)
 
         msh_path = self.fea_dir / "airfoil_2d.msh"
@@ -114,20 +126,10 @@ class Fea2dAnalysis:
         region = felupe.RegionTriangle(mesh)
         field = felupe.FieldContainer([felupe.Field(region, dim=2)])
 
-        le_idx = int(np.argmin(coords[:, 0]))
-        upper = coords[: le_idx + 1][::-1]
-        lower = coords[le_idx:]
-        upper = upper[np.argsort(upper[:, 0])]
-        lower = lower[np.argsort(lower[:, 0])]
-        p_upper = pressure[: le_idx + 1][::-1]
-        p_lower = pressure[le_idx:]
-        p_upper = p_upper[np.argsort(upper[:, 0])]
-        p_lower = p_lower[np.argsort(lower[:, 0])]
-        x_all = np.concatenate([upper[:, 0], lower[:, 0]])
-        p_all = np.concatenate([p_upper, p_lower])
-        sort_idx = np.argsort(x_all)
-        from scipy.interpolate import interp1d
-        cp_interp = interp1d(x_all[sort_idx], p_all[sort_idx], fill_value="extrapolate")
+        # Use KDTree on surface coordinates for pressure lookup — avoids
+        # interleaving upper and lower surface pressures via 1D interp1d
+        from scipy.spatial import KDTree as _KDTree
+        cp_tree = _KDTree(coords)
 
         all_line_segs = []
         for i, cb in enumerate(m.cells):
@@ -147,11 +149,14 @@ class Fea2dAnalysis:
 
         for seg in line_cells:
             p0, p1 = points[seg[0]], points[seg[1]]
-            mid = (p0 + p1) / 2.0
-            dp = float(cp_interp(mid[0]))
             dx = p1[0] - p0[0]
             dy = p1[1] - p0[1]
             length = np.sqrt(dx * dx + dy * dy)
+            if length < 1e-10:
+                continue
+            mid = (p0 + p1) / 2.0
+            _, idx = cp_tree.query(mid)
+            dp = float(pressure[idx])
             normal = np.array([dy, -dx]) / length
             f_node = (-dp * length / 2.0) * normal
             for node_id in seg:
@@ -164,11 +169,16 @@ class Fea2dAnalysis:
         load = felupe.PointLoad(field, boundary_node_ids.tolist(), values=loaded_forces)
 
         bounds = {
-            "fixed": felupe.dof.Boundary(
+            "te_fixed": felupe.dof.Boundary(
                 field[0],
-                fx=lambda x: np.isclose(x, 1.0, atol=0.02),
+                fx=lambda x: np.isclose(x, 1.0, atol=0.005),
                 skip=(False, False),
-            )
+            ),
+            "spar_support": felupe.dof.Boundary(
+                field[0],
+                fx=lambda x: np.isclose(x, 0.25, atol=0.01),
+                skip=(True, False),
+            ),
         }
 
         step = felupe.Step(items=[solid, load], boundaries=bounds)

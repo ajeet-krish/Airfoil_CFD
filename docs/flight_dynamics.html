@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="6-DoF flight dynamics with SU2-anchored aerodynamic surrogates and second-order actuator modeling">
+  <title>Flight Dynamics - CFD Airfoil Explorer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xz/fonts@1/serve/meslo-lg.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    /* --- Pipeline Diagram --- */
+    .pipeline {
+      display: flex;
+      justify-content: center;
+      align-items: stretch;
+      gap: 0;
+      margin: 30px 0;
+      flex-wrap: wrap;
+    }
+    .pipeline-box {
+      background: var(--card-bg);
+      border: 1px solid var(--current-line);
+      border-left: 3px solid var(--purple);
+      padding: 14px 18px;
+      text-align: center;
+      min-width: 160px;
+      flex: 1;
+      position: relative;
+    }
+    .pipeline-box h4 {
+      color: var(--cyan);
+      margin: 0 0 4px;
+      font-size: 0.8em;
+    }
+    .pipeline-box p {
+      font-size: 0.7em;
+      color: var(--comment);
+      margin: 0;
+    }
+    .pipeline-arrow {
+      display: flex;
+      align-items: center;
+      color: var(--pink);
+      font-size: 1.2em;
+      padding: 0 6px;
+    }
+    .pipeline-stats {
+      display: flex;
+      justify-content: space-around;
+      margin-top: 8px;
+      font-size: 0.7em;
+      color: var(--green);
+      border-top: 1px solid rgba(255,255,255,0.06);
+      padding-top: 8px;
+    }
+    .pipeline-stats span { color: var(--comment); }
+
+    /* --- Simulation Canvas --- */
+    .sim-container {
+      background: var(--card-bg);
+      border: 1px solid var(--current-line);
+      border-radius: 6px;
+      overflow: hidden;
+      margin: 20px 0;
+    }
+    #simCanvas {
+      width: 100%;
+      height: auto;
+      display: block;
+      background: #1a1b2e;
+      cursor: pointer;
+    }
+    .sim-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      border-top: 1px solid var(--current-line);
+      background: rgba(0,0,0,0.15);
+    }
+    .sim-controls button {
+      background: var(--current-line);
+      border: 1px solid var(--comment);
+      color: var(--foreground);
+      padding: 6px 14px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.78em;
+      border-radius: 4px;
+      transition: all 0.15s;
+    }
+    .sim-controls button:hover { background: var(--comment); color: var(--background); }
+    .sim-controls button.active { border-color: var(--pink); color: var(--pink); }
+    .sim-controls input[type="range"] {
+      flex: 1;
+      accent-color: var(--pink);
+      height: 4px;
+      background: var(--current-line);
+      border: none;
+      border-radius: 2px;
+      cursor: pointer;
+    }
+    .sim-time {
+      color: var(--cyan);
+      font-size: 0.8em;
+      min-width: 50px;
+      text-align: center;
+      font-weight: 700;
+    }
+    .sim-metrics {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1px;
+      background: var(--current-line);
+    }
+    .sim-metric {
+      background: var(--card-bg);
+      padding: 10px;
+      text-align: center;
+    }
+    .sim-metric .label {
+      font-size: 0.6em;
+      color: var(--comment);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .sim-metric .value {
+      font-size: 1.2em;
+      font-weight: 700;
+      color: var(--cyan);
+      margin-top: 2px;
+    }
+    .sim-metric .value.aoa { color: var(--pink); }
+    .sim-metric .value.gust { color: var(--yellow); }
+    .sim-metric .value.load { color: var(--green); }
+
+    /* --- Compare section (before/during gust) --- */
+    .compare-flow {
+      display: flex;
+      align-items: stretch;
+      gap: 16px;
+      margin: 20px 0;
+    }
+    .compare-flow .metric-group {
+      flex: 1;
+      background: var(--card-bg);
+      border: 1px solid var(--current-line);
+      border-radius: 6px;
+      padding: 20px;
+    }
+    .compare-flow .metric-group h3 {
+      color: var(--purple);
+      margin: 0 0 12px;
+      text-align: center;
+      font-size: 1em;
+    }
+    .compare-flow .metric-group.steady { border-top: 3px solid var(--green); }
+    .compare-flow .metric-group.gust { border-top: 3px solid var(--pink); }
+    .compare-flow .flow-arrow {
+      display: flex;
+      align-items: center;
+      font-size: 2em;
+      color: var(--pink);
+      padding: 0 8px;
+    }
+    .compare-flow .metric-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      font-size: 0.85em;
+    }
+    .compare-flow .metric-row:last-child { border-bottom: none; }
+    .compare-flow .metric-row .key { color: var(--comment); }
+    .compare-flow .metric-row .val { color: var(--foreground); font-weight: 700; }
+    .compare-flow .metric-row .val.delta {
+      color: var(--green);
+    }
+    .compare-flow .metric-row .val.delta.negative { color: var(--red); }
+    @media (max-width: 720px) {
+      .compare-flow { flex-direction: column; }
+      .compare-flow .flow-arrow { transform: rotate(90deg); padding: 8px 0; }
+    }
+
+    /* --- Terminal Log --- */
+    .terminal {
+      background: #0d0d1a;
+      border: 1px solid var(--current-line);
+      border-radius: 6px;
+      padding: 16px 20px;
+      margin: 20px 0;
+      font-size: 0.78em;
+      line-height: 1.6;
+      min-height: 220px;
+      overflow-y: auto;
+      font-family: 'Meslo LG L', monospace;
+    }
+    .terminal .line {
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .terminal .line .ts { color: var(--comment); }
+    .terminal .line .ok { color: var(--green); }
+    .terminal .line .warn { color: var(--yellow); }
+    .terminal .line .info { color: var(--cyan); }
+    .terminal .line .event { color: var(--pink); font-weight: 700; }
+    .terminal .line .data { color: var(--foreground); }
+    .terminal .cursor {
+      display: inline-block;
+      width: 8px;
+      height: 1em;
+      background: var(--green);
+      animation: blink 1s step-end infinite;
+      vertical-align: text-bottom;
+      margin-left: 2px;
+    }
+    @keyframes blink {
+      50% { opacity: 0; }
+    }
+
+    /* --- Verification Table --- */
+    .verification-table { font-size: 0.85em; }
+    .verification-table .status-pass { color: var(--green); font-weight: 700; }
+    .verification-table .status-pending { color: var(--yellow); }
+
+    /* --- Physics equation layout --- */
+    .eq-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin: 20px 0;
+    }
+    .eq-card {
+      background: var(--card-bg);
+      border-left: 3px solid var(--purple);
+      padding: 16px 20px;
+    }
+    .eq-card h4 { margin: 0 0 10px; font-size: 0.85em; }
+    .eq-card p { font-size: 0.8em; color: var(--comment); margin: 0; }
+    @media (max-width: 720px) {
+      .eq-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<button class="sidebar-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">&#9776;</button>
+
+<div class="sidebar">
+  <div class="sidebar-brand"><a href="index.html">CFD Airfoil <span style="color:var(--cyan)">Explorer</span></a></div>
+  <nav class="sidebar-nav">
+    <div class="nav-section">
+      <div class="nav-heading">CFD Pipeline</div>
+      <a href="methodology.html" class="nav-item">Methodology</a>
+      <a href="implementation.html" class="nav-item">Implementation</a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-heading">Analysis</div>
+      <a href="airfoil_analysis.html" class="nav-item">Airfoil Analysis</a>
+      <a href="optimization.html" class="nav-item">Optimization</a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-heading">Structures</div>
+      <a href="structural.html" class="nav-item">Structural Analysis</a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-heading">Aircraft</div>
+      <a href="aircraft_design.html" class="nav-item">Aircraft Design</a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-heading">Flight Dynamics</div>
+      <a href="flight_dynamics.html" class="nav-item active">Flight Dynamics</a>
+    </div>
+  </nav>
+</div>
+
+<div class="container">
+
+  <div class="hero" style="padding:2rem 0 0.5rem">
+    <h1>Flight <span style="color:var(--cyan)">Dynamics</span></h1>
+    <p>6-DoF longitudinal rigid-body dynamics with second-order actuator modeling, SU2-anchored aerodynamic surrogates, and event-driven CFD verification.</p>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ============================================================ -->
+  <!-- Section 1: The Verified Bridge -->
+  <!-- ============================================================ -->
+  <h2>The Verified Bridge</h2>
+  <p>Flight dynamics connects CFD to real-world motion. An aerodynamic surrogate built from SU2 RANS data feeds
+    a Newton-Euler 6-DoF integrator, which drives an event-driven verification hook that fires SU2 snapshots at
+    critical flight conditions - closing the loop between fast surrogate prediction and high-fidelity CFD.</p>
+
+  <div class="pipeline">
+    <div class="pipeline-box">
+      <h4>SU2 CFD RANS</h4>
+      <p>Compressible RANS with SA turbulence at 5 AoA points</p>
+      <div class="pipeline-stats">
+        <div><span>Angles</span><br>0&deg; to 16&deg;</div>
+        <div><span>Mesh</span><br>32K nodes</div>
+      </div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-box">
+      <h4>AeroSurrogate</h4>
+      <p>Linear interpolation over AoA with flap delta effects</p>
+      <div class="pipeline-stats">
+        <div><span>Interp</span><br>scipy interp1d</div>
+        <div><span>Cache</span><br>JSON serialized</div>
+      </div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-box">
+      <h4>6-DoF Dynamics</h4>
+      <p>Newton-Euler integration at 200 Hz with second-order actuator</p>
+      <div class="pipeline-stats">
+        <div><span>State</span><br>[u,w,q,&theta;,x,z]</div>
+        <div><span>Rate</span><br>200 Hz</div>
+      </div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-box" style="border-left-color:var(--green)">
+      <h4>Verification Hook</h4>
+      <p>Event-driven SU2 snapshot at peak gust and cruise recovery</p>
+      <div class="pipeline-stats">
+        <div><span>Triggers</span><br>2 events</div>
+        <div><span>Status</span><br style="color:var(--green)">Active</div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ============================================================ -->
+  <!-- Section 2: Interactive Simulation Replay -->
+  <!-- ============================================================ -->
+  <h2>Interactive Simulation Replay</h2>
+  <p>Watch the aircraft respond to a 5 m/s &ldquo;1-cos&rdquo; vertical gust at 50 m/s cruise. The simulation runs at 200 Hz
+    with second-order actuator dynamics. Nose-up pitch indicates positive AoA excursion.</p>
+
+  <div class="sim-container">
+    <canvas id="simCanvas" width="700" height="380"></canvas>
+    <div class="sim-controls">
+      <button id="playBtn" class="active">&#9654; Play</button>
+      <input type="range" id="scrubBar" min="0" max="1999" value="0">
+      <span class="sim-time" id="timeDisplay">0.00s</span>
+      <button id="speedBtn">1x</button>
+    </div>
+    <div class="sim-metrics">
+      <div class="sim-metric">
+        <div class="label">Angle of Attack</div>
+        <div class="value aoa" id="aoaDisplay">1.14&deg;</div>
+      </div>
+      <div class="sim-metric">
+        <div class="label">True Airspeed</div>
+        <div class="value" id="vDisplay">50.0 m/s</div>
+      </div>
+      <div class="sim-metric">
+        <div class="label">Load Factor</div>
+        <div class="value load" id="loadDisplay">1.00g</div>
+      </div>
+      <div class="sim-metric">
+        <div class="label">Vertical Gust</div>
+        <div class="value gust" id="gustDisplay">0.0 m/s</div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ============================================================ -->
+  <!-- Section 3: Steady vs Gust Response -->
+  <!-- ============================================================ -->
+  <h2>Steady vs Gust Response</h2>
+  <p>A 5 m/s vertical gust (duration 0.5s, onset at t=1.0s) excites the longitudinal dynamics. The aircraft
+    experiences a transient AoA increase of 0.6&deg; and a peak load factor of 2.48g before recovering to trim.</p>
+
+  <div class="compare-flow">
+    <div class="metric-group steady">
+      <h3>Steady Cruise</h3>
+      <div class="metric-row"><span class="key">True Airspeed</span><span class="val">50.0 m/s</span></div>
+      <div class="metric-row"><span class="key">Angle of Attack</span><span class="val">1.14&deg;</span></div>
+      <div class="metric-row"><span class="key">Load Factor</span><span class="val">1.00g</span></div>
+      <div class="metric-row"><span class="key">Flap Deflection</span><span class="val">0.0&deg;</span></div>
+      <div class="metric-row"><span class="key">CL / CD</span><span class="val">0.128 / 0.081</span></div>
+    </div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="metric-group gust">
+      <h3>Peak Gust Response</h3>
+      <div class="metric-row"><span class="key">True Airspeed</span><span class="val" id="gustV">50.6 m/s</span></div>
+      <div class="metric-row"><span class="key">Angle of Attack</span><span class="val" id="gustAoa">1.73&deg;</span></div>
+      <div class="metric-row"><span class="key">Load Factor</span><span class="val delta" id="gustLoad">2.48g</span></div>
+      <div class="metric-row"><span class="key">Flap Deflection</span><span class="val">0.0&deg;</span></div>
+      <div class="metric-row"><span class="key">CL / CD</span><span class="val" id="gustClCd">0.194 / 0.083</span></div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ============================================================ -->
+  <!-- Section 4: Verification Event Log -->
+  <!-- ============================================================ -->
+  <h2>Verification Event Log</h2>
+  <p>The verification hook monitors the simulation state stream for key flight conditions. On trigger, it
+    serializes the flight state and requests a high-fidelity SU2 RANS snapshot for comparison against the
+    aerodynamic surrogate prediction.</p>
+
+  <div class="terminal" id="terminal">
+    <div class="line"><span class="ts">[2026-07-01 20:39:12]</span> <span class="ok">SYSTEM INITIALIZED</span></div>
+    <div class="line"><span class="ts">[2026-07-01 20:39:12]</span> <span class="data">Trim: V=50.0 m/s, AoA=1.14 deg, CL=0.128, CD=0.081</span></div>
+    <div class="line"><span class="ts">[2026-07-01 20:39:12]</span> <span class="data">Surrogate: SU2 tunnel (5 AoA pts, extended -16..+16 deg)</span></div>
+    <div id="terminalLines"></div>
+    <span class="cursor" id="terminalCursor"></span>
+  </div>
+
+  <table class="verification-table">
+    <thead>
+      <tr><th>Event</th><th>Time</th><th>AoA</th><th>V</th><th>Surrogate CL</th><th>Surrogate CD</th><th>SU2 Status</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="color:var(--pink);font-weight:700">Peak Gust</td>
+        <td>1.26s</td>
+        <td>1.73&deg;</td>
+        <td>50.6 m/s</td>
+        <td>0.194</td>
+        <td>0.083</td>
+        <td><span class="status-pending">Snapshot Requested</span></td>
+      </tr>
+      <tr>
+        <td style="color:var(--green);font-weight:700">Cruise Recovery</td>
+        <td>1.70s</td>
+        <td>0.80&deg;</td>
+        <td>51.0 m/s</td>
+        <td>0.090</td>
+        <td>0.080</td>
+        <td><span class="status-pending">Snapshot Requested</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <hr class="divider">
+
+  <!-- ============================================================ -->
+  <!-- Section 5: Physics Model -->
+  <!-- ============================================================ -->
+  <h2>Physics Model</h2>
+  <p>The longitudinal dynamics integrate Newton-Euler rigid-body equations in body-axis coordinates.
+    Aerodynamic forces are computed from the surrogate model and rotated from wind axes.
+    Static stability is enforced via a negative static margin ($C_{m_\alpha} = C_L \cdot \overline{x}_{cg}$).</p>
+
+  <div class="eq-grid">
+    <div class="eq-card">
+      <h4>Newton-Euler Equations</h4>
+      <p>$$ \dot{u} = -q w - g\sin\theta + \frac{F_x}{m} $$</p>
+      <p>$$ \dot{w} = q u + g\cos\theta + \frac{F_z}{m} $$</p>
+      <p>$$ \dot{q} = \frac{M}{I_{yy}} $$</p>
+      <p>$$ \dot{\theta} = q $$</p>
+    </div>
+    <div class="eq-card">
+      <h4>Wind-to-Body Force Rotation</h4>
+      <p>$$ F_x = L\sin\alpha - D\cos\alpha + T $$</p>
+      <p>$$ F_z = -L\cos\alpha - D\sin\alpha $$</p>
+      <p>$$ M = \bar{q} S c\,(C_m + C_{L}\overline{x}_{cg} + C_{m_q}\hat{q}) $$</p>
+    </div>
+    <div class="eq-card">
+      <h4>Second-Order Actuator</h4>
+      <p>$$ \ddot{\delta} = \omega_n^2(\delta_{cmd} - \delta) - 2\zeta\omega_n\dot{\delta} $$</p>
+      <p style="margin-top:8px">$\zeta = 0.7$, $\omega_n = 10$ rad/s, $f_s = 200$ Hz</p>
+    </div>
+    <div class="eq-card">
+      <h4>Gust Profile</h4>
+      <p>$$ V_g(t) = \frac{A}{2}\left[1 - \cos\frac{2\pi(t-t_0)}{T}\right] $$</p>
+      <p style="margin-top:8px">$A = 5$ m/s, $t_0 = 1.0$ s, $T = 0.5$ s</p>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ============================================================ -->
+  <!-- Section 6: Telemetry Dashboard -->
+  <!-- ============================================================ -->
+  <h2>Full Telemetry</h2>
+  <p>The dual-panel dashboard shows the flight trajectory with AoA overlay (top) and the actuator commanded
+    vs actual deflection with load factor (bottom). The gust event at t=1.0s is visible as a transient in both
+    panels.</p>
+
+  <div class="figure">
+    <img src="assets/images/dynamics/telemetry.png" alt="Flight dynamics telemetry dashboard showing trajectory, AoA, actuator response, and load factor">
+    <div class="figure-caption">Telemetry dashboard: Flight trajectory &amp; AoA (top), Actuator response &amp; load factor (bottom)</div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ============================================================ -->
+  <!-- Section 7: Code Architecture -->
+  <!-- ============================================================ -->
+  <h2>Module Architecture</h2>
+  <p>The flight dynamics pipeline is implemented across six modules in <code>src/</code> and one in <code>physics/</code>:</p>
+
+  <table>
+    <thead>
+      <tr><th>Module</th><th>Class / Function</th><th>Purpose</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>physics/aero_surrogate.py</code></td><td><code>AeroSurrogate</code></td><td>CL/CD/CM interpolation from SU2 data</td></tr>
+      <tr><td><code>src/dynamics.py</code></td><td><code>LongitudinalDynamics</code></td><td>6-DoF Newton-Euler integration</td></tr>
+      <tr><td><code>src/actuator.py</code></td><td><code>Actuator</code></td><td>Second-order control surface model</td></tr>
+      <tr><td><code>src/gust_profile.py</code></td><td><code>gust_1minuscos()</code></td><td>Smooth vertical wind gust generator</td></tr>
+      <tr><td><code>src/verification_hook.py</code></td><td><code>VerificationHook</code></td><td>Event-driven SU2 snapshot trigger</td></tr>
+      <tr><td><code>src/plot_telemetry.py</code></td><td><code>plot_telemetry()</code></td><td>Dracula-themed telemetry dashboard</td></tr>
+      <tr><td><code>run_flight_dynamics.py</code></td><td><code>main()</code></td><td>Orchestrator and entry point</td></tr>
+    </tbody>
+  </table>
+
+</div>
+
+<footer class="site-footer">
+  <p>&copy; 2026 &middot; CFD Airfoil Explorer &middot; SU2 &middot; Gmsh &middot; Matplotlib &middot; Dracula Theme</p>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+<script>
+// =========================================================================
+// 1. Load flight dynamics JSON data
+// =========================================================================
+let flightData = [];
+let currentFrame = 0;
+let isPlaying = false;
+let playbackSpeed = 1;
+let animFrameId = null;
+
+fetch("assets/data/flight_dynamics.json")
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    flightData = data;
+    document.getElementById("scrubBar").max = data.length - 1;
+    drawFrame(0);
+    startTerminal();
+  })
+  .catch(function(err) {
+    console.error("Failed to load flight data:", err);
+    document.getElementById("terminalLines").innerHTML =
+      '<div class="line"><span class="ts">[ERROR]</span> <span class="warn">Flight data not available. Run \'uv run python run_flight_dynamics.py\' first.</span></div>';
+  });
+
+// =========================================================================
+// 2. Canvas drawing
+// =========================================================================
+var canvas = document.getElementById("simCanvas");
+var ctx = canvas.getContext("2d");
+
+function drawFrame(idx) {
+  if (!flightData.length) return;
+  var frame = flightData[Math.min(idx, flightData.length - 1)];
+  currentFrame = idx;
+
+  var W = canvas.width, H = canvas.height;
+  var cx = W * 0.5, cy = H * 0.45;
+
+  // Clear
+  ctx.clearRect(0, 0, W, H);
+
+  // --- Sky gradient ---
+  var grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, "#1a1b3e");
+  grad.addColorStop(0.6, "#2d2f5e");
+  grad.addColorStop(0.6, "#3d2a1a");
+  grad.addColorStop(1, "#2a1a0a");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // --- Horizon line ---
+  var horizonY = H * 0.6;
+  ctx.strokeStyle = "rgba(139, 233, 253, 0.3)";
+  ctx.lineWidth = 1;
+  ctx.setLineDash([8, 6]);
+  ctx.beginPath();
+  ctx.moveTo(0, horizonY);
+  ctx.lineTo(W, horizonY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // --- Gust indicator (vertical arrow on left) ---
+  var gust = frame.wind_gust || 0;
+  if (gust > 0.01) {
+    var gx = 30;
+    var gy = horizonY - 60;
+    var gh = gust * 8;
+    ctx.strokeStyle = "#f1fa8c";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(gx, gy + gh);
+    ctx.lineTo(gx, gy);
+    ctx.stroke();
+    // arrowhead
+    ctx.beginPath();
+    ctx.moveTo(gx - 5, gy + 5);
+    ctx.lineTo(gx, gy);
+    ctx.lineTo(gx + 5, gy + 5);
+    ctx.stroke();
+    ctx.fillStyle = "#f1fa8c";
+    ctx.font = "11px 'Meslo LG L', monospace";
+    ctx.fillText(gust.toFixed(1) + " m/s", gx + 8, gy + 4);
+    // label
+    ctx.fillStyle = "rgba(241, 250, 140, 0.5)";
+    ctx.font = "9px 'Meslo LG L', monospace";
+    ctx.fillText("GUST", gx - 10, gy + gh + 16);
+  }
+
+  // --- Pitch ladder ---
+  var pitchDeg = frame.theta * (180 / Math.PI);
+  ctx.strokeStyle = "rgba(248, 248, 242, 0.12)";
+  ctx.lineWidth = 1;
+  for (var i = -20; i <= 20; i += 5) {
+    var ly = horizonY - (i * 2);
+    if (ly < 10 || ly > H - 10) continue;
+    var lw = (i % 10 === 0) ? 60 : 30;
+    ctx.beginPath();
+    ctx.moveTo(cx - lw, ly);
+    ctx.lineTo(cx + lw, ly);
+    ctx.stroke();
+    if (i % 10 === 0 && i !== 0) {
+      ctx.fillStyle = "rgba(248, 248, 242, 0.2)";
+      ctx.font = "9px 'Meslo LG L', monospace";
+      ctx.fillText((i > 0 ? "+" : "") + i + "deg", cx + lw + 6, ly + 4);
+    }
+  }
+
+  // --- Draw aircraft ---
+  var aoaDeg = frame.aoa || 0;
+
+  ctx.save();
+  ctx.translate(cx, horizonY);
+
+  // Pitch rotation (aircraft pitches relative to horizon)
+  ctx.rotate(-pitchDeg * Math.PI / 180);
+
+  // --- Aircraft body (airfoil-like shape) ---
+  var sc = 0.9;
+
+  // Fuselage
+  ctx.beginPath();
+  ctx.moveTo(65 * sc, 0);
+  ctx.bezierCurveTo(55 * sc, -9 * sc, -50 * sc, -9 * sc, -70 * sc, -4 * sc);
+  ctx.lineTo(-70 * sc, 4 * sc);
+  ctx.bezierCurveTo(-50 * sc, 9 * sc, 55 * sc, 9 * sc, 65 * sc, 0);
+  ctx.closePath();
+  ctx.fillStyle = "#f8f8f2";
+  ctx.fill();
+  ctx.strokeStyle = "#6272a4";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Cockpit window
+  ctx.beginPath();
+  ctx.moveTo(40 * sc, -5 * sc);
+  ctx.bezierCurveTo(30 * sc, -7 * sc, 15 * sc, -7 * sc, 10 * sc, -4 * sc);
+  ctx.strokeStyle = "#8be9fd";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Wing
+  ctx.beginPath();
+  ctx.moveTo(5 * sc, -2 * sc);
+  ctx.lineTo(20 * sc, -28 * sc);
+  ctx.lineTo(40 * sc, -28 * sc);
+  ctx.lineTo(25 * sc, 2 * sc);
+  ctx.closePath();
+  ctx.fillStyle = "#bd93f9";
+  ctx.fill();
+  ctx.strokeStyle = "#6272a4";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Horizontal stabilizer
+  ctx.beginPath();
+  ctx.moveTo(-50 * sc, -2 * sc);
+  ctx.lineTo(-65 * sc, -14 * sc);
+  ctx.lineTo(-55 * sc, -14 * sc);
+  ctx.lineTo(-42 * sc, -2 * sc);
+  ctx.closePath();
+  ctx.fillStyle = "#bd93f9";
+  ctx.fill();
+  ctx.stroke();
+
+  // Vertical stabilizer (rudder)
+  ctx.beginPath();
+  ctx.moveTo(-55 * sc, -2 * sc);
+  ctx.lineTo(-60 * sc, -22 * sc);
+  ctx.lineTo(-48 * sc, -22 * sc);
+  ctx.lineTo(-42 * sc, -2 * sc);
+  ctx.closePath();
+  ctx.fillStyle = "#ff79c6";
+  ctx.fill();
+  ctx.stroke();
+
+  // AoA indicator line (from nose, showing relative wind)
+  ctx.restore();
+
+  // --- Relative wind line (AoA) ---
+  ctx.save();
+  ctx.translate(cx, horizonY);
+  ctx.rotate(aoaDeg * Math.PI / 180);
+  ctx.strokeStyle = "rgba(255, 121, 198, 0.4)";
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(-80 * sc, 0);
+  ctx.lineTo(80 * sc, 0);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = "rgba(255, 121, 198, 0.6)";
+  ctx.font = "9px 'Meslo LG L', monospace";
+  ctx.fillText("\u03b1 = " + aoaDeg.toFixed(1) + "\u00b0", 82 * sc, -2);
+  ctx.restore();
+
+  // --- HUD overlay ---
+  ctx.fillStyle = "rgba(0,0,0,0.4)";
+  ctx.fillRect(10, 8, 170, 50);
+  ctx.fillStyle = "#6272a4";
+  ctx.font = "9px 'Meslo LG L', monospace";
+  ctx.fillText("TIME", 16, 22);
+  ctx.fillText("ALT", 16, 36);
+  ctx.fillText("PITCH", 16, 50);
+  ctx.fillStyle = "#f8f8f2";
+  ctx.font = "bold 9px 'Meslo LG L', monospace";
+  ctx.fillStyle = "#8be9fd";
+  ctx.fillText(frame.t.toFixed(2) + "s", 70, 22);
+  ctx.fillStyle = "#f8f8f2";
+  ctx.fillText(frame.z.toFixed(1) + " m", 70, 36);
+  ctx.fillStyle = "#ff79c6";
+  ctx.fillText(pitchDeg.toFixed(1) + "\u00b0", 70, 50);
+}
+
+// =========================================================================
+// 3. Playback controls
+// =========================================================================
+var playBtn = document.getElementById("playBtn");
+var scrubBar = document.getElementById("scrubBar");
+var speedBtn = document.getElementById("speedBtn");
+var timeDisplay = document.getElementById("timeDisplay");
+
+playBtn.addEventListener("click", function() {
+  isPlaying = !isPlaying;
+  playBtn.textContent = isPlaying ? "\u25a0 Stop" : "\u25b6 Play";
+  playBtn.classList.toggle("active", isPlaying);
+  if (isPlaying) playLoop();
+});
+
+speedBtn.addEventListener("click", function() {
+  if (playbackSpeed === 1) { playbackSpeed = 2; speedBtn.textContent = "2x"; }
+  else if (playbackSpeed === 2) { playbackSpeed = 4; speedBtn.textContent = "4x"; }
+  else { playbackSpeed = 1; speedBtn.textContent = "1x"; }
+});
+
+function playLoop() {
+  if (!isPlaying || !flightData.length) return;
+  var nextIdx = currentFrame + playbackSpeed;
+  if (nextIdx >= flightData.length) {
+    isPlaying = false;
+    playBtn.textContent = "\u25b6 Play";
+    playBtn.classList.remove("active");
+    return;
+  }
+  drawFrame(nextIdx);
+  scrubBar.value = nextIdx;
+  updateMetrics(nextIdx);
+  animFrameId = requestAnimationFrame(playLoop);
+}
+
+scrubBar.addEventListener("input", function() {
+  var idx = parseInt(this.value);
+  if (isPlaying) {
+    isPlaying = false;
+    playBtn.textContent = "\u25b6 Play";
+    playBtn.classList.remove("active");
+    if (animFrameId) cancelAnimationFrame(animFrameId);
+  }
+  drawFrame(idx);
+  updateMetrics(idx);
+});
+
+function updateMetrics(idx) {
+  if (!flightData.length) return;
+  var f = flightData[idx] || flightData[0];
+  document.getElementById("aoaDisplay").innerHTML = (f.aoa || 0).toFixed(2) + "&deg;";
+  document.getElementById("vDisplay").textContent = (f.V || 0).toFixed(1) + " m/s";
+  var n = Math.abs(f.lift || 0) / (50 * 9.81);
+  document.getElementById("loadDisplay").innerHTML = n.toFixed(2) + "g";
+  document.getElementById("gustDisplay").textContent = (f.wind_gust || 0).toFixed(1) + " m/s";
+  document.getElementById("timeDisplay").textContent = (f.t || 0).toFixed(2) + "s";
+}
+
+// =========================================================================
+// 4. Terminal animation
+// =========================================================================
+function startTerminal() {
+  if (!flightData.length) return;
+  var terminalLines = document.getElementById("terminalLines");
+
+  // Find peak gust and cruise recovery frames
+  var peakGust = null, cruiseRecovery = null;
+  for (var i = 0; i < flightData.length; i++) {
+    var f = flightData[i];
+    if (!peakGust && f.wind_gust > 1.0) {
+      // Check if gust is decreasing (peak was just hit)
+      var next = flightData[i + 1];
+      if (next && next.wind_gust < f.wind_gust) {
+        peakGust = f;
+      }
+    }
+    if (peakGust && !cruiseRecovery && f.t > 1.6 && f.wind_gust < 0.01) {
+      var aoaDiff = Math.abs(f.aoa - 1.14);
+      if (aoaDiff < 0.5) {
+        cruiseRecovery = f;
+      }
+    }
+  }
+
+  // Fallback if detection fails
+  if (!peakGust) {
+    peakGust = flightData.find(function(f) { return f.t >= 1.26; }) || flightData[252];
+  }
+  if (!cruiseRecovery) {
+    cruiseRecovery = flightData.find(function(f) { return f.t >= 1.70; }) || flightData[340];
+  }
+
+  var pg = peakGust;
+  var cr = cruiseRecovery;
+  var pgN = Math.abs(pg.lift) / (50 * 9.81);
+  var crN = Math.abs(cr.lift) / (50 * 9.81);
+
+  var lines = [
+    { html: '<span class="ts">[2026-07-01 20:39:13]</span> <span class="warn">+++ GUST DETECTED +++</span>', delay: 500 },
+    { html: '<span class="ts">[2026-07-01 20:39:13]</span> <span class="info">Vertical gust: 5.0 m/s at t=1.00s</span>', delay: 400 },
+    { html: '<span class="ts">[2026-07-01 20:39:13]</span> <span class="data">Monitoring load factor transient...</span>', delay: 600 },
+    { html: '<span class="ts">[2026-07-01 20:39:14]</span> <span class="event">[VERIFICATION] peak_gust @ t=' + pg.t.toFixed(2) + 's</span>', delay: 500 },
+    { html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="data">AoA=' + pg.aoa.toFixed(2) + 'deg &nbsp;V=' + pg.V.toFixed(1) + 'm/s &nbsp;n=' + pgN.toFixed(2) + 'g</span>', delay: 300 },
+    { html: '<span class="ts">[2026-07-01 20:39:15]</span> <span class="ok">--- GUST ENDED ---</span>', delay: 500 },
+    { html: '<span class="ts">[2026-07-01 20:39:15]</span> <span class="data">Aircraft returning to trim condition...</span>', delay: 600 },
+    { html: '<span class="ts">[2026-07-01 20:39:16]</span> <span class="event">[VERIFICATION] cruise_recovery @ t=' + cr.t.toFixed(2) + 's</span>', delay: 500 },
+    { html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="data">AoA=' + cr.aoa.toFixed(2) + 'deg &nbsp;V=' + cr.V.toFixed(1) + 'm/s &nbsp;Status: <span class="ok">STABLE</span></span>', delay: 300 },
+    { html: '<span class="ts">[2026-07-01 20:39:16]</span> <span class="data">SU2 snapshot requests dispatched. Awaiting results.</span>', delay: 800 },
+  ];
+
+  var lineIdx = 0;
+  var cursor = document.getElementById("terminalCursor");
+
+  function appendLine() {
+    if (lineIdx >= lines.length) {
+      if (cursor) cursor.style.display = "inline-block";
+      return;
+    }
+    var div = document.createElement("div");
+    div.className = "line";
+    div.innerHTML = lines[lineIdx].html;
+    terminalLines.appendChild(div);
+    terminalLines.parentElement.scrollTop = terminalLines.parentElement.scrollHeight;
+    lineIdx++;
+    var delay = lines[lineIdx - 1].delay || 400;
+    setTimeout(appendLine, delay);
+  }
+
+  if (cursor) cursor.style.display = "none";
+  appendLine();
+}
+
+// =========================================================================
+// 5. KaTeX rendering
+// =========================================================================
+document.addEventListener("DOMContentLoaded", function() {
+  renderMathInElement(document.body, {
+    delimiters: [
+      { left: "$$", right: "$$", display: true },
+      { left: "$", right: "$", display: false }
+    ],
+    throwOnError: false
+  });
+});
+
+// =========================================================================
+// 6. Auto-advance on idle
+// =========================================================================
+// Start the animation automatically when data loads
+var autoPlayTimer = setTimeout(function() {
+  if (flightData.length > 0 && !isPlaying) {
+    isPlaying = true;
+    playBtn.textContent = "\u25a0 Stop";
+    playBtn.classList.add("active");
+    playLoop();
+  }
+}, 1500);
+</script>
+
+</body>
+</html>

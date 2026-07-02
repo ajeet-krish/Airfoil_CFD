@@ -15,14 +15,34 @@
 
 <body>
 
-  <div class="top-nav">
-    <a href="index.html">Home</a>
-    <a href="methodology.html">Methodology</a>
-    <a href="airfoil_analysis.html">Airfoil Analysis</a>
-    <a href="optimization.html">Optimization</a>
-    <a href="structural.html">Structural Analysis</a>
-    <a href="aircraft_design.html">Aircraft Design</a>
-    <a href="implementation.html">Implementation</a>
+  <button class="sidebar-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">&#9776;</button>
+
+  <div class="sidebar">
+    <div class="sidebar-brand"><a href="index.html">CFD Airfoil <span style="color:var(--cyan)">Explorer</span></a></div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">
+        <div class="nav-heading">CFD Pipeline</div>
+        <a href="methodology.html" class="nav-item">Methodology</a>
+        <a href="implementation.html" class="nav-item">Implementation</a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-heading">Analysis</div>
+        <a href="airfoil_analysis.html" class="nav-item">Airfoil Analysis</a>
+        <a href="optimization.html" class="nav-item active">Optimization</a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-heading">Structures</div>
+        <a href="structural.html" class="nav-item">Structural Analysis</a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-heading">Aircraft</div>
+        <a href="aircraft_design.html" class="nav-item">Aircraft Design</a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-heading">Flight Dynamics</div>
+        <a href="flight_dynamics.html" class="nav-item">Flight Dynamics</a>
+      </div>
+    </nav>
   </div>
 
   <div class="container">

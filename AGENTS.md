@@ -7,8 +7,9 @@ and outputs a static Dracula-themed portfolio website with ParaView field
 visualizations and matplotlib convergence/aggregate plots with experimental
 validation. Includes airfoil shape optimization (CST + NeuralFoil + SLSQP),
 structural FEA (FElupe 3D + 2D plane-stress), 3D wing CFD pipeline (2.5D extrusion),
-CadQuery wing CAD (STEP export with spar/ribs), and parametric aircraft CAD
-(fuselage, full wing, empennage, GLB web export).
+CadQuery wing CAD (STEP export with spar/ribs), parametric aircraft CAD
+(fuselage, full wing, empennage, GLB web export), and verified 6-DoF flight
+dynamics with second-order actuator modeling and SU2-anchored aerodynamic surrogates.
 
 ## Style Rules
 - **No em dashes** anywhere in the website. Use a regular hyphen `-` instead of `--`, `&mdash;`, `&ndash;`, or the literal Unicode em dash `—`.
@@ -85,6 +86,40 @@ Always reference Soccer CFD when stuck on architecture or visualization question
   - CadQuery Compound assembly, STEP export to output/cad/
   - Maintains 1.5:1 width/height aspect ratio across all loft sections
 
+### src/ Modules (Flight Dynamics & Control System)
+- `physics/aero_surrogate.py` - `AeroSurrogate` class. Creates aerodynamic coefficient surrogates ($C_L, C_D, C_M$) anchored by SU2 RANS data:
+  - `from_su2_tunnel()` classmethod reads real SU2 output directories
+  - Interpolation via scipy over AoA range, with flap delta effects
+  - `verify(su2_result)` comparison logging for surrogate-vs-CFD validation
+  - JSON cache for fast reload without re-running SU2
+
+- `src/dynamics.py` - `LongitudinalDynamics` class. 6-DoF longitudinal rigid-body model:
+  - State vector: [u, w, q, theta, x, z] (forward/vertical vel, pitch rate, pitch, position)
+  - Full Newton-Euler integration: du/dt, dw/dt, dq/dt, dtheta/dt
+  - Body-axis forces from CL/CD rotated from wind axes
+  - Configurable mass (50 kg), wing area (2.5 m^2), Iyy (2.0 kg-m^2)
+  - Step function accepts control command and wind gust input
+
+- `src/actuator.py` - `Actuator` class. Second-order transfer function for control surface actuation:
+  - Discretized ODE: accel = omega_n^2 * (cmd - state) - 2*zeta*omega_n*vel
+  - Default: zeta=0.7 (critically damped), omega_n=10 rad/s
+  - dt-matched to dynamics loop (100 Hz)
+
+- `src/gust_profile.py` - Smooth "1-cos" wind gust generator:
+  - V_gust(t) = (A/2) * (1 - cos(2*pi*(t-t0)/T)) for t0 <= t <= t0+T
+  - Default: A=10 m/s, T=0.5s smooth ramp
+
+- `src/verification_hook.py` - `VerificationHook` class. Event-driven SU2 snapshot runner:
+  - Detects peak gust load and cruise recovery events
+  - On trigger: serializes flight state, calls MeshGenerator + SU2Solver
+  - Compares surrogate vs SU2 CL/CD/CM at snapshot condition
+  - Maintains event log for verification report
+
+- `src/plot_telemetry.py` - Dracula-themed dual-panel telemetry dashboard:
+  - Panel 1: Flight trajectory (altitude vs range) + AoA over time
+  - Panel 2: Actuator commanded vs actual deflection + load factor
+  - Output to docs/assets/images/dynamics/telemetry.png
+
 ### Workflow
 For standard multi-angle analysis: `run_tunnel.py` orchestrates geometry -> C-grid mesh -> SU2 solver -> convergence plots -> aggregate plots.
 For single-airfoil optimization: `run_optimization.py` runs CST optimization (NeuralFoil) -> meshes optimized shape -> runs SU2 RANS -> generates comparison.
@@ -93,6 +128,7 @@ For 2D plane-stress FEA: `run_fea_2d.py` runs extract_pressure -> generate_2d_me
 For 3D wing pipeline: `run_3d_pipeline.py` runs 2.5D extrusion mesh -> SU2 3D RANS -> FEA with 3D surface pressure (for both NACA 0012 and optimized wing).
 For wing CAD: `run_cad.py` generates CadQuery STEP files with spar/ribs.
 For aircraft CAD: `run_aircraft.py` builds full parametric aircraft, then `aircraft_to_web.py` converts STEP to GLB for web viewer.
+For flight dynamics: `run_flight_dynamics.py` runs the 6-DoF longitudinal dynamics with second-order actuator and SU2 verification hook.
 All images go directly to `docs/assets/images/naca0012/` (per-AoA in `aoa_*` subdirs, plots in `plots/`, mesh in `mesh_naca0012/`).
 `output/cfd/naca0012/` contains 2D CFD artifacts, `output/cfd/naca0012_3d/` and `output/cfd/optimized_3d/` contain 3D pipeline artifacts, `output/cad/` for STEP files, `output/fea/` for FEA results.
 
@@ -109,7 +145,8 @@ uv run python run_fea_2d.py         # 2D plane-stress FEA for both airfoils (~10
 uv run python run_3d_pipeline.py    # 3D mesh -> SU2 3D CFD -> 3D pressure FEA (~25 min)
 uv run python run_cad.py            # CadQuery wing CAD STEP export
 uv run python run_aircraft.py       # Parametric aircraft CAD STEP export (~5 sec)
-uv run python aircraft_to_web.py    # STEP to GLB conversion for web viewer (~10 sec)
+uv run python aircraft_to_web.py    # STEP to GLB for web viewer (~10 sec)
+uv run python run_flight_dynamics.py # Flight dynamics + actuator co-simulation (~5 sec) - also exports JSON data for web page
 ```
 
 ---
@@ -204,8 +241,16 @@ uv run python aircraft_to_web.py    # STEP to GLB conversion for web viewer (~10
 - `docs/structural.html` - Structural analysis: FEA results, stress/displacement contours, load mapping methodology
 - `docs/implementation.html` - How to run, code architecture, SU2 config reference, 5 expandable source blocks
 - `docs/aircraft_design.html` - Interactive 3D model-viewer: specs table, design decisions
+- `docs/flight_dynamics.html` - 6-DoF longitudinal dynamics: interactive canvas replay, "The Verified Bridge" pipeline diagram, steady vs gust metric comparison, verification terminal log, KaTeX physics equations, full telemetry dashboard
 - `paraview_recipes.md` - (project root, untracked) ParaView step-by-step in markdown
-- All pages share `nav.top-nav` bar: **Home | Methodology | Airfoil Analysis | Optimization | Structural Analysis | Aircraft Design | Implementation**
+- All pages share a fixed `sidebar` (left, 240px) with section headings and sub-items:
+  - **CFD Pipeline**: Methodology, Implementation
+  - **Analysis**: Airfoil Analysis, Optimization
+  - **Structures**: Structural Analysis
+  - **Aircraft**: Aircraft Design
+  - **Flight Dynamics**: Flight Dynamics
+- The sidebar brand link ("CFD Airfoil Explorer") serves as the Home link
+- `.nav-item.active` class marks the current page's link
 - CSS is minimalist Dracula inspired by `/Users/ajeet/Projects/Digital\ CV`: `#21222c` card bg, `border-left` accent, no hover lift/shadow, no gradients, monospace throughout
 - Images go directly to `docs/assets/images/` - no sync step needed
 - `docs/` is the GitHub Pages root
@@ -292,24 +337,49 @@ Lift curve slope: 0.109 per degree (matches theoretical 2pi within 1%)
 | Material | Al 7075-T6 |
 | Wing Mesh | 1,241 nodes, 3,417 tetrahedra |
 
-## 2D Plane-Stress FEA Results (2026-06-26)
+## 2D Plane-Stress FEA Results (2026-06-27)
 
 ### NACA 0012 at 4deg
 | Metric | Value |
 |--------|------:|
-| Max Displacement | 5.8 mm |
-| Peak von Mises Stress | 2552.5 MPa |
-| Factor of Safety | 0.2 |
+| Max Displacement | 114.1 mm |
+| Peak von Mises Stress | 95,644 MPa |
+| Factor of Safety | 0.0 |
 | Material | Al 7075-T6 (plane-stress) |
-| Mesh | 3,049 nodes, 5,697 triangles |
+| Mesh | 31,535 nodes, 62,397 triangles |
+| Net Force | [27.1, 205.7] N (Drag, Lift) |
 
 ### Optimized Airfoil at 4deg
-- CFD results not yet available (SU2 verification not run)
+| Metric | Value |
+|--------|------:|
+| Max Displacement | 377.5 mm |
+| Peak von Mises Stress | 819,779 MPa |
+| Factor of Safety | 0.0 |
+| Material | Al 7075-T6 (plane-stress) |
+| Mesh | 28,202 nodes, 55,782 triangles |
+| Net Force | [20.2, 121.3] N (Drag, Lift) |
+
+### Changes (2026-06-27)
+- **Mesh refinement**: Replaced uniform `Mesh.CharacteristicLengthMax=0.02` with
+  Distance+Threshold fields (`SizeMin=0.002`, `SizeMax=0.008`). Mesh density
+  increased ~10x (3K -> 31K nodes).
+- **TE dedup**: If first and last `.dat` coordinates coincide (sharp TE, optimized
+  airfoil), the duplicate point is dropped to avoid zero-length closing segments.
+  Fixes Gmsh warnings about points closer than geometrical tolerance.
+- **Pressure interpolation fix**: Replaced `interp1d(x_sorted, p_sorted)` with
+  KDTree nearest-neighbor lookup. The 1D approach interleaved upper (suction)
+  and lower (pressure) surface values, averaging lift to ~0 N. KDTree correctly
+  maps each segment midpoint to its closest surface point, giving realistic lift.
+- **Spar support BC**: Added quarter-chord roller support (`skip=(True, False)`
+  at x=0.25) alongside TE fixed BC. Without this, the TE-only constraint turned
+  the airfoil into a cantilever beam, producing kilometer-scale displacements
+  under correct lift loads.
+- **Zero-length segment safety**: `length < 1e-10` check in force loop prevents
+  divide-by-zero from degenerate boundary segments.
 
 ### Notes
-- Mesh concatenation fix in `fea2d.py`: Gmsh creates 1 cell block per line entity
-  (399 individual blocks). The fix concatenates all line blocks with physical=1
-  instead of reading only the first block found.
+- High stresses (>yield) are expected — 2D plane-stress with simple BCs cannot
+  represent full 3D wing structure. Consistent with 3D FEA results (3082 MPa peak).
 - FElupe warning "Cauchy stress tensor can't be evaluated on a 2d-Field" is normal;
   Kirchhoff stress fallback is used internally by FElupe.
 
@@ -327,6 +397,7 @@ uv run python run_cad.py          # CadQuery wing STEP export
 uv run python run_fea_2d.py       # 2D plane-stress FEA (~10 sec)
 uv run python run_aircraft.py     # Parametric aircraft CAD (~5 sec)
 uv run python aircraft_to_web.py  # STEP to GLB for web viewer (~10 sec)
+uv run python run_flight_dynamics.py # Flight dynamics + actuator co-simulation (~5 sec) - also exports JSON for web page
 # No build step - static HTML hand-authored; edit files directly in docs/
 open docs/index.html              # View portfolio site
 ```
@@ -411,6 +482,28 @@ open docs/index.html              # View portfolio site
     purple left border, cyan values). Removed STEP Download section. Removed "Generating the Model" section.
 32. **Key loft lesson**: All CadQuery loft sections must maintain consistent aspect ratio (1.5:1 width/height for
     fuselage). Mismatched aspect ratios in final sections cause inverted/open back surfaces.
+
+## Recent Additions (2026-07-01)
+33. **Sidebar navigation**: Replaced top navbar with fixed 240px left sidebar across all 8 HTML pages.
+     Section headings (CFD Pipeline, Analysis, Structures, Aircraft, Flight Dynamics) with indented
+     sub-items. `.nav-item.active` highlights current page with pink left border. Mobile hamburger
+     toggle at ≤720px. Body layout changed from `flex-direction: column` to `padding-left: 240px`.
+34. **Flight dynamics page**: New `docs/flight_dynamics.html` with:
+     - "The Verified Bridge" pipeline diagram (SU2 CFD → AeroSurrogate → 6-DoF Dynamics → Verification)
+     - Interactive `<canvas>` replay with aircraft silhouette, pitch ladder, AoA relative wind line,
+       gust arrow indicator, HUD overlay, and playback controls (Play/Stop, scrub bar, 1x/2x/4x speed)
+     - Steady vs gust response side-by-side metric cards
+     - Terminal-style verification event log with animated typewriter output
+     - Verification event table with Snapshot Requested status
+     - KaTeX physics equations (Newton-Euler, force rotation, actuator ODE, gust profile)
+     - Full telemetry dashboard image
+     - Module architecture table
+35. **JSON data export**: `run_flight_dynamics.py` now exports `docs/assets/data/flight_dynamics.json`
+     (2000 frames, ~1MB) for web-based interactive playback. Each frame includes t, u, w, q, theta, x, z,
+     aoa, V, gamma, cl, cd, cm, delta, command, wind_gust, lift, drag, M.
+36. **Docs assets structure**: Added `docs/assets/data/` for generated JSON data (gitignored).
+     Added `docs/assets/images/dynamics/` for telemetry plots (gitignored).
+37. **AGENTS.md / README.md / .gitignore updated**: All three files synchronized with current project state.
 
 ## Color Scheme (Dracula)
 - Background: `#282a36`

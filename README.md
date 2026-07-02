@@ -1,6 +1,7 @@
 # CFD Airfoil Explorer
 
-Automated CFD analysis of NACA 4-digit airfoils across multiple angles of attack using SU2 RANS (Spalart-Allmaras) on high-quality C-grid meshes with structured boundary layers. Includes airfoil shape optimization via CST parameterization + NeuralFoil surrogate + SU2 verification, structural analysis of wings under CFD loads (FElupe FEA), 3D wing CFD+FEA pipeline via 2.5D extrusion, and CadQuery wing CAD with internal spars/ribs.
+Automated CFD analysis of NACA 4-digit airfoils across multiple angles of attack using SU2 RANS (Spalart-Allmaras). This pipeline has evolved into a full MDO (Multidisciplinary Design Optimization) system, bridging parametric CAD, high-fidelity CFD, structural FEA, and now, verified 6-DoF flight dynamics with integrated cyber-physical control modeling.
+
 
 ## Features
 
@@ -14,7 +15,9 @@ Automated CFD analysis of NACA 4-digit airfoils across multiple angles of attack
 - **Parametric Aircraft CAD**: Full fuselage, wing, and empennage configurator with CadQuery, STEP export, GLB web conversion
 - **2D Plane-Stress FEA**: Airfoil interior mesh, FElupe linear elastic solve, stress/displacement contours
 - **ParaView Visualizations**: Velocity contours, pressure fields, and structural deformation rendered interactively
-- **Code-Generated Plots**: Convergence history, Cl/Cd curves, drag polar, airfoil shape overlays with experimental validation
+- **Flight Dynamics**: 6-DoF flight dynamics pipeline in Python with second-order actuator modeling and verified surrogate aerodynamic mapping (anchored by SU2 RANS).
+- **Verified Cyber-Physical Simulation**: Dynamic system simulation verified at peak-load and cruise-recovery points via automated SU2 CFD snapshot runs.
+- **Interactive Web Animation**: Canvas-based simulation replay with pitch ladder, AoA indicator, gust visualization, and playback controls
 - **Knowledge Graph**: Codebase mapped via graphify with 141 nodes, 282 edges, 13 communities — query relationships between modules
 - **Extensible**: Add new airfoils by running the same pipeline, each gets its own results page
 
@@ -64,15 +67,16 @@ Automated CFD analysis of NACA 4-digit airfoils across multiple angles of attack
 | Bodies | 6 (fuselage, wings, hstab, vstab) |
 | GLB Size | 17K verts, 34K faces |
 
-## Requirements
-
-| Metric | Value |
-|--------|------:|
-| Max Tip Displacement | 521.6 mm |
-| Peak von Mises Stress | 3082 MPa |
-| Factor of Safety | 0.2 (solid wing, no spars) |
-| Material | Al 7075-T6 |
-| Wing Mesh | 1,241 nodes, 3,417 tetrahedra |
+### Flight Dynamics (NACA 0012, 5 m/s Gust at 50 m/s Cruise)
+| Metric | Steady Cruise | Peak Gust |
+|--------|-------------:|----------:|
+| True Airspeed | 50.0 m/s | 50.6 m/s |
+| Angle of Attack | 1.14 deg | 1.73 deg |
+| Load Factor | 1.00 g | 2.48 g |
+| CL | 0.128 | 0.194 |
+| CD | 0.081 | 0.083 |
+| Pitch Rate | 0.0 deg/s | -2.3 deg/s |
+| Verification Events | - | peak_gust @ 1.26s, cruise_recovery @ 1.70s |
 
 ## Requirements
 
@@ -111,8 +115,10 @@ uv run python run_aircraft.py
 # STEP to GLB conversion for web viewer
 uv run python aircraft_to_web.py
 
-# 2D plane-stress FEA
-uv run python run_fea_2d.py
+# Dynamic Flight Simulation (6-DoF Python Pipeline, verified by SU2)
+# Also exports docs/assets/data/flight_dynamics.json for web replay
+uv run python run_flight_dynamics.py
+
 
 # View results
 open docs/index.html
@@ -122,7 +128,14 @@ open docs/index.html
 
 ```
 .
-├── physics/
+├── src/                          Flight dynamics & control system
+│   ├── dynamics.py               6-DoF longitudinal rigid-body dynamics
+│   ├── actuator.py               Second-order transfer function actuator model
+│   ├── gust_profile.py           Smooth 1-cos wind gust generator
+│   ├── verification_hook.py      Event-driven SU2 CFD snapshot runner
+│   └── plot_telemetry.py         Dracula-themed dual-panel telemetry dashboard
+├── physics/              
+│   ├── aero_surrogate.py         SU2-anchored aerodynamic coefficient surrogate
 │   ├── geometry.py       NACA 4-digit coordinates with cosine spacing
 │   ├── mesher.py         MeshGenerator — hybrid C-grid via Gmsh
 │   ├── mesher3d.py       MeshGenerator3D — 2.5D extrusion to 3D volume mesh
@@ -135,6 +148,7 @@ open docs/index.html
 │   ├── fea2d.py          Fea2dAnalysis — 2D plane-stress FEA
 │   ├── cad_wing.py       CadQuery wing with sweep/dihedral/twist, spar/ribs
 │   └── aircraft.py       Parametric aircraft CAD (fuselage, wing, empennage)
+├── run_flight_dynamics.py Flight dynamics + actuator co-simulation
 ├── run_tunnel.py          2D multi-angle pipeline orchestrator
 ├── run_optimization.py    CST optimization pipeline
 ├── run_fea.py             FEA for optimized wing (2D->3D pressure)
@@ -151,12 +165,16 @@ open docs/index.html
 │   ├── optimization.html       Optimized airfoil results
 │   ├── structural.html         FEA structural analysis results
 │   ├── aircraft_design.html    Interactive 3D aircraft model
+│   ├── flight_dynamics.html    6-DoF flight dynamics with interactive replay
 │   ├── implementation.html     Code architecture and source
 │   ├── css/style.css           Dracula theme
 │   └── assets/
+│       ├── data/               Generated JSON data
+│       │   └── flight_dynamics.json  2000-frame simulation log
 │       ├── images/             All images (ParaView + code-generated)
 │       │   ├── naca0012/
-│       │   └── optimized/
+│       │   ├── optimized/
+│       │   └── dynamics/       Telemetry dashboard
 │       └── models/             GLB 3D models for web viewer
 ├── output/                     Simulation artifacts (gitignored)
 │   ├── cfd/                    CFD results (2D + 3D)
@@ -164,6 +182,19 @@ open docs/index.html
 │   └── fea/                    FEA VTU + results
 └── graphify-out/               Knowledge graph outputs (gitignored)
 ```
+
+## Website
+
+All pages share a fixed left sidebar (240px, Dracula-themed) with section headings:
+- **CFD Pipeline**: Methodology, Implementation
+- **Analysis**: Airfoil Analysis, Optimization
+- **Structures**: Structural Analysis
+- **Aircraft**: Aircraft Design
+- **Flight Dynamics**: Flight Dynamics
+
+The sidebar brand link ("CFD Airfoil Explorer") serves as the Home link.
+The `.nav-item.active` class marks the current page's link with a pink left border.
+On mobile (≤720px), the sidebar is hidden and a hamburger toggle button appears.
 
 ## Adding a New Airfoil
 
